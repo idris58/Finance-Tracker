@@ -1,0 +1,46 @@
+Design a standalone Personal Finance Tracking app for a single user with a focus on 'Safe-to-Spend' logic.
+Architecture & Data Model:
+	Use Dexie.js (IndexedDB) for local-first storage.
+	Data Model: Create tables for 1. Transactions (amount, category, date, payment_method, note) 2. Budgets (category_name, monthly_limit) 3. Accounts (name, type: Cash/Bank/Mobile, balance) 4. Settings (monthly_income, savings_goal, fixed_bills_total)
+	Home Screen: Features a high-visibility dashboard with 'Total Balance' and a dynamic 'Safe-to-Spend' daily indicator. Include a floating '+' button.
+	Input Flow: A streamlined entry form for expenses. When an expense is added, subtract it from the 'Total Balance' and update the category progress bar.
+	Visuals: Use Progress Bars for category budgets. Integrate a Pie Chart for monthly spending breakdown.
+	Mess Integration: Include a specific category for 'Mess Deposits' that links to the user's external meal management costs.
+	Design Style: Modern, minimalist UI with a Dark Theme (Deep Navy backgrounds with Gold or Neon Green accents). Use rounded corners and high-contrast text for readability. The UI must be mobile-responsive and feel like a modern banking app.
+	Data Safety/Backup: Please include a JSON Export/Import utility in the settings menu to prevent data loss. Add a 'Export Data' button that saves a .json file to my phone, and an 'Import Data' button so I can restore my records if I switch phones or clear my cache.
+Technical Requirement: Ensure the app is responsive (works on mobile and desktop) and uses a local-first storage approach to keep it free. saves data directly to the phone/browser's internal memory. For data persistence, use Dexie.js (IndexedDB) so that the app remains 'Full-stack' functional on Replit's free tier.
+Use "PWA" (Progressive Web App): Make the app a PWA. This allows you to "Add to Home Screen" on your phone so it looks like a real app.
+The App Flow (The Navigation)
+The Dashboard (The "Command Center")
+This is the first screen you see. It should be clean and not overwhelming.
+	Current "Total Cash" (Sum of Bank + Cash in hand).
+	"Safe-to-Spend" daily limit. (Example: "You can spend 500 more today to stay on budget").
+	Quick Action Button: A large floating "+" button at the bottom center to add an expense instantly.
+	Recent Activity: A list of the last 3-4 transactions.
+Add Transaction 
+This screen must be fast so you don't forget to log small costs (like tea or rickshaw fare).
+	Date
+	Input Field: Number pad for the amount.
+	Category Grid: Visual icons (Food, Mess/meal Deposit, Transport, Mobile Recharge, Entertainment).
+	Toggle: "Cash" or "Bank/Card” Or “Bkash/Nagad".
+	Note/Description (e.g., "Lunch with Rudro").
+Transactions: A list view of all spending with the ability to filter by month.
+Budget & Categories (The "Strategy View")
+This is where you plan your month.
+	Category Progress Bars: Each category shows a bar.
+	Green: Under 50% spent.
+	Yellow: 80% spent (Warning).
+	Red: Over budget.
+	Fixed Bills Section: A place to list your Rent, Mess/meal deposit, utilities, and Internet bills so they are subtracted from your "Safe-to-Spend" balance immediately.
+Analytics (The "Reflection View")
+	Pie Chart: A simple chart showing: "Where is my money going?"
+	Monthly Comparison: A bar chart comparing this month's spending vs. last month.
+The "Smart" Logic (The Math)
+To make it user-friendly, the app should calculate your "Safe-to-Spend" (STS) limit automatically.
+The Formula: 
+"Daily STS"  = [(Monthly Income - Fixed Bills - Savings Goal) - Current Month's Expenses] / Days Remaining in Month
+This formula computes the maximum amount that can be safely spent per day after accounting for mandatory expenses and planned savings, evenly distributed across the remaining days of the month.
+	Fixed Bills: Mess meal costs, Rent, utilities, etc.
+	Savings Goal: The amount you want to keep untouched.
+	Result: This tells you exactly how much you can spend on "Wants" (snacks, hangouts) today without failing your monthly goal.
+
