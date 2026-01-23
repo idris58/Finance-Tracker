@@ -295,3 +295,25 @@ export function useImportData() {
     },
   });
 }
+
+export function useResetAllData() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      await storage.resetAllData();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({ title: "Data reset successful", description: "All app data has been cleared. You're starting fresh!" });
+      // Redirect to welcome page after reset
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    },
+    onError: () => {
+      toast({ title: "Reset failed", description: "Could not reset data.", variant: "destructive" });
+    },
+  });
+}

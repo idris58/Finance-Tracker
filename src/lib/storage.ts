@@ -26,6 +26,9 @@ export interface IStorage {
   
   // Bulk (for Import)
   importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void>;
+  
+  // Reset all data
+  resetAllData(): Promise<void>;
 }
 
 export class LocalStorage implements IStorage {
@@ -263,6 +266,26 @@ export class LocalStorage implements IStorage {
         }
       }
     }
+  }
+
+  async resetAllData(): Promise<void> {
+    // Clear all tables
+    await db.settings.clear();
+    await db.categories.clear();
+    await db.transactions.clear();
+    await db.accounts.clear();
+    
+    // Reinitialize settings with defaults
+    const defaultSettings: Omit<Settings, 'id'> = {
+      monthlyIncome: '0',
+      savingsGoal: '0',
+      fixedBillsTotal: '0',
+      currencySymbol: '৳',
+      currentBalance: '0',
+      isSetupComplete: false,
+      updatedAt: new Date(),
+    };
+    await db.settings.add(defaultSettings);
   }
 }
 

@@ -1,4 +1,4 @@
-import { useSettings, useUpdateSettings, useExportData, useImportData, useAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount } from "@/hooks/use-finance";
+import { useSettings, useUpdateSettings, useExportData, useImportData, useAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount, useResetAllData } from "@/hooks/use-finance";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertSettingsSchema, insertAccountSchema } from "@shared/schema";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save, Download, Upload, Wallet, PiggyBank, Receipt, CreditCard, Smartphone, Plus, Edit, Trash2, Landmark } from "lucide-react";
+import { Loader2, Save, Download, Upload, Wallet, PiggyBank, Receipt, CreditCard, Smartphone, Plus, Edit, Trash2, Landmark, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const { mutate, isPending } = useUpdateSettings();
   const exportData = useExportData();
   const { mutate: importData, isPending: isImporting } = useImportData();
+  const { mutate: resetAllData, isPending: isResetting } = useResetAllData();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { mutate: createAccount, isPending: isCreatingAccount } = useCreateAccount();
   const { mutate: updateAccount, isPending: isUpdatingAccount } = useUpdateAccount();
@@ -45,6 +46,7 @@ export default function SettingsPage() {
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<{ id: number; name: string; type: 'Cash' | 'Bank' | 'Mobile'; balance: string } | null>(null);
   const [deleteAccountId, setDeleteAccountId] = useState<number | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -375,8 +377,58 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="glass-card border-white/5 border-destructive/30 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="text-destructive">Reset All Data</CardTitle>
+              <CardDescription>
+                Clear all financial data and start fresh. This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={() => setResetConfirmOpen(true)}
+                disabled={isResetting}
+                className="w-full"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Reset All Data
+              </Button>
+            </CardContent>
+          </Card>
         </form>
       </Form>
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent className="bg-card border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Reset All Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all your financial data including:
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>All transactions</li>
+                <li>All categories</li>
+                <li>All accounts</li>
+                <li>Settings (will be reset to defaults)</li>
+              </ul>
+              <p className="mt-4 font-semibold text-foreground">This action cannot be undone!</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => resetAllData()}
+              disabled={isResetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Yes, Reset Everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Account Dialog */}
       <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
