@@ -1,6 +1,6 @@
 {
-  "name": "Finance Tracker",
-  "short_name": "Finance",
+  "name": "Finance Hub",
+  "short_name": "Finance Hub",
   "description": "Personal Finance Tracking app with Safe-to-Spend logic",
   "start_url": "/",
   "display": "standalone",
