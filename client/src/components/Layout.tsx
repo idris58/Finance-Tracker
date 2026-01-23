@@ -59,35 +59,46 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-card border-t border-white/5 px-6 py-4 flex justify-between items-center z-50">
-        {navItems.map((item, idx) => {
-          // Insert FAB in the middle
-          if (idx === 2) {
-            return (
-              <div key="fab" className="relative -top-8">
-                <button 
-                  onClick={() => setIsTxModalOpen(true)}
-                  className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all neon-glow"
-                >
-                  <Plus className="w-7 h-7" />
-                </button>
-              </div>
-            );
-          }
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                className={cn(
-                  "flex flex-col items-center gap-1 transition-colors cursor-pointer",
-                  location === item.href ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                <item.icon className={cn("w-6 h-6", location === item.href && "drop-shadow-[0_0_8px_rgba(57,255,20,0.5)]")} />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </div>
-            </Link>
-          );
-        })}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-card border-t border-white/5 px-4 py-3 flex justify-around items-center z-50">
+        {/* First two nav items */}
+        {navItems.slice(0, 2).map((item) => (
+          <Link key={item.href} href={item.href}>
+            <div
+              className={cn(
+                "flex flex-col items-center gap-1 transition-colors cursor-pointer min-w-[60px]",
+                location === item.href ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className={cn("w-6 h-6", location === item.href && "drop-shadow-[0_0_8px_rgba(57,255,20,0.5)]")} />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </div>
+          </Link>
+        ))}
+        
+        {/* FAB in the middle */}
+        <div className="relative -top-8">
+          <button 
+            onClick={() => setIsTxModalOpen(true)}
+            className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all neon-glow"
+          >
+            <Plus className="w-7 h-7" />
+          </button>
+        </div>
+
+        {/* Last two nav items */}
+        {navItems.slice(2).map((item) => (
+          <Link key={item.href} href={item.href}>
+            <div
+              className={cn(
+                "flex flex-col items-center gap-1 transition-colors cursor-pointer min-w-[60px]",
+                location === item.href ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className={cn("w-6 h-6", location === item.href && "drop-shadow-[0_0_8px_rgba(57,255,20,0.5)]")} />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </div>
+          </Link>
+        ))}
       </nav>
 
       <TransactionModal open={isTxModalOpen} onOpenChange={setIsTxModalOpen} />

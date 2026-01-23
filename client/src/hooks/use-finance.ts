@@ -1,21 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
+import { storage } from "@/lib/storage";
 import type { 
   InsertTransaction, 
   InsertCategory, 
+  InsertAccount,
   UpdateSettingsRequest,
-  Category
+  Category,
+  Transaction,
+  Settings,
+  Account,
+  DashboardStatsResponse
 } from "@shared/schema";
 
 // --- Settings ---
 export function useSettings() {
   return useQuery({
-    queryKey: [api.settings.get.path],
+    queryKey: ['settings'],
     queryFn: async () => {
-      const res = await fetch(api.settings.get.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch settings");
-      return api.settings.get.responses[200].parse(await res.json());
+      return await storage.getSettings();
     },
   });
 }
@@ -26,18 +29,11 @@ export function useUpdateSettings() {
 
   return useMutation({
     mutationFn: async (data: UpdateSettingsRequest) => {
-      const res = await fetch(api.settings.update.path, {
-        method: api.settings.update.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to update settings");
-      return api.settings.update.responses[200].parse(await res.json());
+      return await storage.updateSettings(data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.settings.get.path] });
-      queryClient.invalidateQueries({ queryKey: [api.stats.get.path] });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Settings saved", description: "Your financial preferences have been updated." });
     },
     onError: () => {
@@ -49,11 +45,9 @@ export function useUpdateSettings() {
 // --- Categories ---
 export function useCategories() {
   return useQuery({
-    queryKey: [api.categories.list.path],
+    queryKey: ['categories'],
     queryFn: async () => {
-      const res = await fetch(api.categories.list.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      return api.categories.list.responses[200].parse(await res.json());
+      return await storage.getCategories();
     },
   });
 }
@@ -64,18 +58,26 @@ export function useCreateCategory() {
 
   return useMutation({
     mutationFn: async (data: InsertCategory) => {
-      const res = await fetch(api.categories.create.path, {
-        method: api.categories.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to create category");
-      return api.categories.create.responses[201].parse(await res.json());
+      return await storage.createCategory(data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.categories.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: "Category added", description: "New budget category created successfully." });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertCategory> }) => {
+      return await storage.updateCategory(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({ title: "Category updated", description: "Category updated successfully." });
     },
   });
 }
@@ -86,12 +88,10 @@ export function useDeleteCategory() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = buildUrl(api.categories.delete.path, { id });
-      const res = await fetch(url, { method: api.categories.delete.method, credentials: "include" });
-      if (!res.ok) throw new Error("Failed to delete category");
+      await storage.deleteCategory(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.categories.list.path] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: "Category deleted", description: "Category removed successfully." });
     },
   });
@@ -100,17 +100,12 @@ export function useDeleteCategory() {
 // --- Transactions ---
 export function useTransactions(filters?: { month?: string, categoryId?: string, limit?: string }) {
   return useQuery({
-    queryKey: [api.transactions.list.path, filters],
+    queryKey: ['transactions', filters],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters?.month) params.append("month", filters.month);
-      if (filters?.categoryId) params.append("categoryId", filters.categoryId);
-      if (filters?.limit) params.append("limit", filters.limit);
-      
-      const url = `${api.transactions.list.path}?${params.toString()}`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch transactions");
-      return api.transactions.list.responses[200].parse(await res.json());
+      const month = filters?.month;
+      const categoryId = filters?.categoryId ? Number(filters.categoryId) : undefined;
+      const limit = filters?.limit ? Number(filters.limit) : undefined;
+      return await storage.getTransactions(month, categoryId, limit);
     },
   });
 }
@@ -121,18 +116,11 @@ export function useCreateTransaction() {
 
   return useMutation({
     mutationFn: async (data: InsertTransaction) => {
-      const res = await fetch(api.transactions.create.path, {
-        method: api.transactions.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to create transaction");
-      return api.transactions.create.responses[201].parse(await res.json());
+      return await storage.createTransaction(data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.transactions.list.path] });
-      queryClient.invalidateQueries({ queryKey: [api.stats.get.path] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Transaction recorded", description: "Your expense has been logged." });
     },
     onError: (err) => {
@@ -147,14 +135,70 @@ export function useDeleteTransaction() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = buildUrl(api.transactions.delete.path, { id });
-      const res = await fetch(url, { method: api.transactions.delete.method, credentials: "include" });
-      if (!res.ok) throw new Error("Failed to delete transaction");
+      await storage.deleteTransaction(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.transactions.list.path] });
-      queryClient.invalidateQueries({ queryKey: [api.stats.get.path] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Transaction deleted", description: "Record removed successfully." });
+    },
+  });
+}
+
+// --- Accounts ---
+export function useAccounts() {
+  return useQuery({
+    queryKey: ['accounts'],
+    queryFn: async () => {
+      return await storage.getAccounts();
+    },
+  });
+}
+
+export function useCreateAccount() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: InsertAccount) => {
+      return await storage.createAccount(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      toast({ title: "Account added", description: "New account created successfully." });
+    },
+  });
+}
+
+export function useUpdateAccount() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertAccount> }) => {
+      return await storage.updateAccount(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      toast({ title: "Account updated", description: "Account updated successfully." });
+    },
+  });
+}
+
+export function useDeleteAccount() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await storage.deleteAccount(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      toast({ title: "Account deleted", description: "Account removed successfully." });
     },
   });
 }
@@ -162,11 +206,43 @@ export function useDeleteTransaction() {
 // --- Stats ---
 export function useStats() {
   return useQuery({
-    queryKey: [api.stats.get.path],
-    queryFn: async () => {
-      const res = await fetch(api.stats.get.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch stats");
-      return api.stats.get.responses[200].parse(await res.json());
+    queryKey: ['stats'],
+    queryFn: async (): Promise<DashboardStatsResponse> => {
+      const settings = await storage.getSettings();
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      // Get this month's transactions
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const transactions = await storage.getTransactions(month);
+
+      const monthlySpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+      const daysInMonth = endOfMonth.getDate();
+      const daysRemaining = daysInMonth - now.getDate();
+      
+      const monthlyIncome = Number(settings.monthlyIncome);
+      const fixedBills = Number(settings.fixedBillsTotal);
+      const savingsGoal = Number(settings.savingsGoal);
+      
+      // Calculate total balance from all accounts
+      const accounts = await storage.getAccounts();
+      const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+
+      // Formula: STS = (Total Balance + Income - Fixed - Savings - Spent) / Days Remaining
+      // For the month: Start with total balance, add income, subtract commitments and spent
+      const available = totalBalance + monthlyIncome - fixedBills - savingsGoal - monthlySpent;
+      const safeToSpendDaily = daysRemaining > 0 ? Math.max(0, available / daysRemaining) : 0;
+
+      return {
+        totalBalance: available, // Return available amount as totalBalance for dashboard display
+        safeToSpendDaily,
+        daysRemaining,
+        monthlySpent,
+        monthlyIncome,
+        fixedBills,
+        savingsGoal
+      };
     },
   });
 }
@@ -177,9 +253,11 @@ export function useExportData() {
   
   return async () => {
     try {
-      const res = await fetch(api.data.export.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to export data");
-      const data = api.data.export.responses[200].parse(await res.json());
+      const settings = await storage.getSettings();
+      const categories = await storage.getCategories();
+      const transactions = await storage.getTransactions();
+      
+      const data = { settings, categories, transactions };
       
       // Trigger download
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -197,4 +275,23 @@ export function useExportData() {
       toast({ title: "Export failed", description: "Could not download data.", variant: "destructive" });
     }
   };
+}
+
+export function useImportData() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[] }) => {
+      await storage.importData(data);
+      return { success: true, count: data.transactions?.length || 0 };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries();
+      toast({ title: "Import successful", description: `Imported ${result.count} transactions.` });
+    },
+    onError: () => {
+      toast({ title: "Import failed", description: "Could not import data.", variant: "destructive" });
+    },
+  });
 }

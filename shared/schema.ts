@@ -1,58 +1,93 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// === TABLE DEFINITIONS ===
+// === ZOD SCHEMAS ===
 
-// Settings for the "Safe-to-Spend" logic
-export const settings = pgTable("settings", {
-  id: serial("id").primaryKey(),
-  monthlyIncome: numeric("monthly_income").notNull().default("0"),
-  savingsGoal: numeric("savings_goal").notNull().default("0"),
-  fixedBillsTotal: numeric("fixed_bills_total").notNull().default("0"), // Rent, Internet, etc.
-  currencySymbol: text("currency_symbol").default("৳"), // Defaulting to BDT based on context (Bkash/Nagad)
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const insertSettingsSchema = z.object({
+  monthlyIncome: z.string().default("0"),
+  savingsGoal: z.string().default("0"),
+  fixedBillsTotal: z.string().default("0"),
+  currencySymbol: z.string().default("৳"),
+  currentBalance: z.string().default("0"),
+  isSetupComplete: z.boolean().default(false),
 });
 
-export const categories = pgTable("categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(), // e.g., Food, Transport, Mess, Mobile Recharge
-  monthlyLimit: numeric("monthly_limit").default("0"),
-  color: text("color").default("#39ff14"), // Hex code for UI
-  isFixed: boolean("is_fixed").default(false), // If true, counts towards fixedBillsTotal automatically? Or just a flag.
+export const insertCategorySchema = z.object({
+  name: z.string().min(1),
+  monthlyLimit: z.string().default("0"),
+  color: z.string().default("#39ff14"),
+  isFixed: z.boolean().default(false),
 });
 
-export const transactions = pgTable("transactions", {
-  id: serial("id").primaryKey(),
-  amount: numeric("amount").notNull(),
-  categoryId: integer("category_id").references(() => categories.id),
-  categoryName: text("category_name"), // Fallback or denormalized for easier display if needed
-  date: timestamp("date").notNull().defaultNow(),
-  paymentMethod: text("payment_method").notNull(), // Cash, Bank, Bkash, Nagad
-  note: text("note"),
-  isRecurring: boolean("is_recurring").default(false),
+export const insertTransactionSchema = z.object({
+  amount: z.string().min(1),
+  categoryId: z.number().optional().nullable(),
+  categoryName: z.string().optional().nullable(),
+  date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
+  paymentMethod: z.string().min(1),
+  note: z.string().optional().nullable(),
+  isRecurring: z.boolean().default(false),
 });
 
-// === BASE SCHEMAS ===
-export const insertSettingsSchema = createInsertSchema(settings).omit({ id: true, updatedAt: true });
-export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
-export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true });
+export const insertAccountSchema = z.object({
+  name: z.string().min(1),
+  type: z.enum(['Cash', 'Bank', 'Mobile']),
+  balance: z.string().default("0"),
+});
 
 // === TYPES ===
-export type Settings = typeof settings.$inferSelect;
+
+export interface Settings {
+  id?: number;
+  monthlyIncome: string;
+  savingsGoal: string;
+  fixedBillsTotal: string;
+  currencySymbol: string;
+  currentBalance: string;
+  isSetupComplete: boolean;
+  updatedAt?: Date;
+}
+
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 
-export type Category = typeof categories.$inferSelect;
+export interface Category {
+  id?: number;
+  name: string;
+  monthlyLimit: string;
+  color: string;
+  isFixed: boolean;
+}
+
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 
-export type Transaction = typeof transactions.$inferSelect;
+export interface Transaction {
+  id?: number;
+  amount: string;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  date: Date;
+  paymentMethod: string;
+  note?: string | null;
+  isRecurring: boolean;
+}
+
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+
+export interface Account {
+  id?: number;
+  name: string;
+  type: 'Cash' | 'Bank' | 'Mobile';
+  balance: string;
+}
+
+export type InsertAccount = z.infer<typeof insertAccountSchema>;
 
 // === API REQUEST TYPES ===
 export type UpdateSettingsRequest = Partial<InsertSettings>;
 export type CreateTransactionRequest = InsertTransaction;
 export type CreateCategoryRequest = InsertCategory;
 export type UpdateCategoryRequest = Partial<InsertCategory>;
+export type CreateAccountRequest = InsertAccount;
+export type UpdateAccountRequest = Partial<InsertAccount>;
 
 // === API RESPONSE TYPES ===
 export type DashboardStatsResponse = {
@@ -60,5 +95,7 @@ export type DashboardStatsResponse = {
   safeToSpendDaily: number;
   daysRemaining: number;
   monthlySpent: number;
-  totalBudget: number;
+  monthlyIncome: number;
+  fixedBills: number;
+  savingsGoal: number;
 };

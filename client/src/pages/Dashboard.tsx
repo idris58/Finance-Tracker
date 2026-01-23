@@ -28,6 +28,8 @@ export default function Dashboard() {
   const safeToSpend = stats?.safeToSpendDaily || 0;
   const daysRemaining = stats?.daysRemaining || 1;
   const monthlySpent = stats?.monthlySpent || 0;
+  const monthlyIncome = Number(settings?.monthlyIncome || 0);
+  const isSetupComplete = settings?.isSetupComplete ?? false;
 
   const container = {
     hidden: { opacity: 0 },
@@ -64,16 +66,31 @@ export default function Dashboard() {
 
       {/* Hero Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div variants={item}>
-            <StatCard
-            label="Safe to Spend"
-            value={`${currency}${Math.round(safeToSpend).toLocaleString()}`}
-            subtext={`Per day for ${daysRemaining} days`}
-            icon={<ShieldCheck className="w-5 h-5" />}
-            variant="primary"
-            className="neon-glow border-primary/30"
-            />
-        </motion.div>
+        {!isSetupComplete || monthlyIncome === 0 ? (
+          <motion.div variants={item} className="md:col-span-2 lg:col-span-4">
+            <div className="glass-card rounded-3xl p-8 border border-white/5 text-center">
+              <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-xl font-semibold mb-2">Setup Required</h3>
+              <p className="text-muted-foreground mb-4">
+                Please set your income in Settings to see your Daily Limit and start tracking your expenses.
+              </p>
+              <a href="/settings" className="text-primary hover:text-primary/80 underline">
+                Go to Settings →
+              </a>
+            </div>
+          </motion.div>
+        ) : (
+          <>
+            <motion.div variants={item}>
+                <StatCard
+                label="Safe to Spend"
+                value={`${currency}${Math.round(safeToSpend).toLocaleString()}`}
+                subtext={`Per day for ${daysRemaining} days`}
+                icon={<ShieldCheck className="w-5 h-5" />}
+                variant="primary"
+                className="neon-glow border-primary/30"
+                />
+            </motion.div>
         
         <motion.div variants={item}>
             <StatCard
@@ -104,6 +121,8 @@ export default function Dashboard() {
             variant="secondary"
             />
         </motion.div>
+          </>
+        )}
       </div>
 
       {/* Recent Activity */}
