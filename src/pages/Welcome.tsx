@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight, Wallet } from "lucide-react";
 import { useAccounts, useCreateAccount, useSettings, useUpdateAccount, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const currencies = [
+  { symbol: "৳", label: "BDT (৳)" },
   { symbol: "$", label: "USD ($)" },
   { symbol: "€", label: "EUR (€)" },
   { symbol: "£", label: "GBP (£)" },
-  { symbol: "৳", label: "BDT (৳)" },
   { symbol: "₹", label: "INR (₹)" },
 ];
 
@@ -21,7 +21,7 @@ export default function WelcomePage() {
   const updateAccount = useUpdateAccount();
 
   const [step, setStep] = useState(1);
-  const [currency, setCurrency] = useState(settings?.currencySymbol || "$" );
+  const [currency, setCurrency] = useState(settings?.currencySymbol || "$");
   const [balance, setBalance] = useState("0");
 
   const cashAccount = useMemo(() => accounts?.find((acc) => acc.name === "Cash"), [accounts]);
@@ -97,5 +97,3 @@ export default function WelcomePage() {
     </div>
   );
 }
-
-

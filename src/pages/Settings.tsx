@@ -9,11 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 const currencies = [
-  { symbol: "$", label: "$" },
-  { symbol: "�", label: "�" },
-  { symbol: "�", label: "�" },
-  { symbol: "?", label: "?" },
-  { symbol: "?", label: "?" },
+  { symbol: "৳", label: "BDT (৳)" },
+  { symbol: "$", label: "USD ($)" },
+  { symbol: "€", label: "EUR (€)" },
+  { symbol: "£", label: "GBP (£)" },
+  { symbol: "₹", label: "INR (₹)" },
 ];
 
 export default function SettingsPage() {
