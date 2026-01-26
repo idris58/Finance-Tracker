@@ -48,23 +48,39 @@ export default function StatisticsPage() {
     return Object.entries(totals).map(([name, value]) => ({ name, value }));
   }, [transactions, activeType]);
 
-  const monthSummary = useMemo(() => {
+  const yearSummary = useMemo(() => {
+    const currentYear = new Date().getFullYear();
     const rows: Record<string, { expense: number; income: number; borrow: number; lend: number }> = {};
+    let totalExpense = 0;
+    let totalIncome = 0;
+
     (allTransactions || []).forEach((tx) => {
-      const key = format(new Date(tx.date), "yyyy-MM");
+      const txDate = new Date(tx.date);
+      if (txDate.getFullYear() !== currentYear) return;
+
+      const key = format(txDate, "yyyy-MM");
       if (!rows[key]) rows[key] = { expense: 0, income: 0, borrow: 0, lend: 0 };
-      if ((tx.type || "expense") === "expense") rows[key].expense += Number(tx.amount);
-      if (tx.type === "income") rows[key].income += Number(tx.amount);
+      if ((tx.type || "expense") === "expense") {
+        rows[key].expense += Number(tx.amount);
+        totalExpense += Number(tx.amount);
+      }
+      if (tx.type === "income") {
+        rows[key].income += Number(tx.amount);
+        totalIncome += Number(tx.amount);
+      }
       if (tx.type === "loan" && tx.loanType === "borrow") rows[key].borrow += Number(tx.amount);
       if (tx.type === "loan" && tx.loanType === "lend") rows[key].lend += Number(tx.amount);
     });
-    return Object.entries(rows)
+
+    const table = Object.entries(rows)
       .map(([month, value]) => ({
         month,
         ...value,
-        balance: value.income - value.expense + value.borrow - value.lend,
+        balance: value.income - value.expense,
       }))
       .sort((a, b) => (a.month < b.month ? 1 : -1));
+
+    return { currentYear, totalExpense, totalIncome, table };
   }, [allTransactions]);
 
   return (
@@ -82,26 +98,56 @@ export default function StatisticsPage() {
           </SheetTrigger>
           <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
             <SheetHeader>
-              <SheetTitle>Monthly balance overview</SheetTitle>
+              <SheetTitle>Balance overview</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 space-y-3">
-              {monthSummary.length === 0 && (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4">
+                <div className="text-sm text-muted-foreground">Year</div>
+                <div className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+                  {yearSummary.currentYear}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                  <p className="text-xs text-muted-foreground">Total expense</p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{yearSummary.totalExpense.toLocaleString()}</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                  <p className="text-xs text-muted-foreground">Total income</p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{yearSummary.totalIncome.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {yearSummary.table.length === 0 && (
                 <p className="text-sm text-muted-foreground">No data yet.</p>
               )}
-              {monthSummary.map((row) => (
-                <div key={row.month} className="rounded-2xl border border-border/60 bg-card/80 p-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{format(new Date(`${row.month}-01`), "MMMM yyyy")}</span>
-                    <span className="font-semibold">{currency}{row.balance.toLocaleString()}</span>
+
+              {yearSummary.table.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
+                  <div className="grid grid-cols-6 gap-1 border-b border-border/60 bg-secondary/60 px-3 py-2 font-semibold text-muted-foreground">
+                    <span>Month</span>
+                    <span>Expense</span>
+                    <span>Income</span>
+                    <span>Lend</span>
+                    <span>Borrow</span>
+                    <span>Balance</span>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <span>Expense: {currency}{row.expense.toLocaleString()}</span>
-                    <span>Income: {currency}{row.income.toLocaleString()}</span>
-                    <span>Borrow: {currency}{row.borrow.toLocaleString()}</span>
-                    <span>Lend: {currency}{row.lend.toLocaleString()}</span>
+                  <div className="divide-y divide-border/60">
+                    {yearSummary.table.map((row) => (
+                      <div key={row.month} className="grid grid-cols-6 gap-1 px-3 py-2 text-sm">
+                        <span className="font-medium">{format(new Date(`${row.month}-01`), "MMMM")}</span>
+                        <span>{currency}{row.expense.toLocaleString()}</span>
+                        <span>{currency}{row.income.toLocaleString()}</span>
+                        <span>{currency}{row.lend.toLocaleString()}</span>
+                        <span>{currency}{row.borrow.toLocaleString()}</span>
+                        <span className={row.balance < 0 ? "text-rose-500" : "text-emerald-500"}>
+                          {currency}{row.balance.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </SheetContent>
         </Sheet>

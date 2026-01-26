@@ -1,5 +1,5 @@
-﻿import { useRef, type ChangeEvent } from "react";
-import { Download, Moon, Sun, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Download, Moon, Smartphone, Sun, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useExportData, useImportData, useSettings, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 const currencies = [
-  { symbol: "$", label: "USD ($)" },
-  { symbol: "€", label: "EUR (€)" },
-  { symbol: "£", label: "GBP (£)" },
-  { symbol: "৳", label: "BDT (৳)" },
-  { symbol: "₹", label: "INR (₹)" },
+  { symbol: "$", label: "$" },
+  { symbol: "�", label: "�" },
+  { symbol: "�", label: "�" },
+  { symbol: "?", label: "?" },
+  { symbol: "?", label: "?" },
 ];
 
 export default function SettingsPage() {
@@ -23,6 +23,27 @@ export default function SettingsPage() {
   const exportData = useExportData();
   const importData = useImportData();
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as any);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+    setIsInstallable(false);
+  };
 
   const handleCurrencyChange = (value: string) => {
     updateSettings.mutate({ currencySymbol: value });
@@ -130,7 +151,21 @@ export default function SettingsPage() {
           />
         </div>
       </div>
+
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">App</h2>
+        <p className="text-sm text-muted-foreground">
+          Install the app for faster access and offline usage.
+        </p>
+        <Button
+          onClick={handleInstall}
+          className="w-full rounded-2xl"
+          disabled={!isInstallable}
+        >
+          <Smartphone className="mr-2 h-4 w-4" />
+          {isInstallable ? "Install app" : "Install not available"}
+        </Button>
+      </div>
     </div>
   );
 }
-

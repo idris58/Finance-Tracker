@@ -92,16 +92,18 @@ export default function TransactionsPage() {
                   <Icon className={cn("h-5 w-5", entry.className)} />
                 </div>
                 <div>
-                  <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
+                    {tx.type === "loan" && tx.loanStatus && (
+                      <span className="inline-flex rounded-full bg-muted/70 px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                        {tx.loanStatus}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(tx.date), "MMM d, yyyy")} - {tx.paymentMethod}
                   </p>
                   {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
-                  {tx.type === "loan" && tx.loanStatus && (
-                    <span className="inline-flex rounded-full bg-muted/70 px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                      {tx.loanStatus}
-                    </span>
-                  )}
                   {tx.note && <p className="text-xs text-muted-foreground/80">{tx.note}</p>}
                 </div>
               </div>
