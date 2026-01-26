@@ -1,7 +1,7 @@
 {
-  "name": "Finance Hub",
-  "short_name": "Finance Hub",
-  "description": "Personal Finance Tracking app with Safe-to-Spend logic",
+  "name": "Finance Tracker",
+  "short_name": "Finance Tracker",
+  "description": "Simple finance tracker for expenses, income, loans, accounts, and insights.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
