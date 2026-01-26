@@ -1,44 +1,73 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Poppins', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'Space Mono', monospace;
 
-  /* Deep Navy Theme with Neon Accents */
-  --background: 216 65% 11%;     /* #0a192f */
-  --foreground: 210 40% 98%;     /* #f8fafc */
-  
-  --card: 217 50% 16%;           /* #13243f - slightly lighter than bg */
-  --card-foreground: 210 40% 98%;
-  
-  --popover: 217 50% 16%;
-  --popover-foreground: 210 40% 98%;
-  
-  --primary: 130 100% 61%;       /* #39ff14 - Neon Green */
-  --primary-foreground: 216 65% 11%;
-  
-  --secondary: 48 100% 50%;      /* #ffd700 - Gold */
-  --secondary-foreground: 216 65% 11%;
-  
-  --muted: 217 30% 22%;
-  --muted-foreground: 215 20% 65%;
-  
-  --accent: 217 40% 25%;
-  --accent-foreground: 210 40% 98%;
-  
+  --background: 210 30% 98%;
+  --foreground: 222 22% 16%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 22% 16%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 22% 16%;
+
+  --primary: 347 83% 58%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 20% 94%;
+  --secondary-foreground: 222 22% 16%;
+
+  --muted: 210 16% 92%;
+  --muted-foreground: 215 12% 46%;
+
+  --accent: 210 30% 96%;
+  --accent-foreground: 222 22% 16%;
+
   --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 214 20% 88%;
+  --input: 214 20% 88%;
+  --ring: 347 83% 58%;
+
+  --radius: 1.25rem;
+}
+
+.dark {
+  --background: 222 26% 11%;
+  --foreground: 210 40% 98%;
+
+  --card: 222 24% 14%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222 24% 14%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 347 83% 60%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 222 18% 20%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 222 18% 20%;
+  --muted-foreground: 215 16% 70%;
+
+  --accent: 222 18% 22%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 72% 50%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 30% 22%;
-  --input: 217 30% 22%;
-  --ring: 130 100% 61%;
-  
-  --radius: 1rem;
+  --border: 222 18% 24%;
+  --input: 222 18% 24%;
+  --ring: 347 83% 60%;
 }
 
 @layer base {
@@ -46,39 +75,21 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body antialiased selection:bg-primary/30 selection:text-primary-foreground;
-    background-image: radial-gradient(at 0% 0%, hsla(217,40%,20%,1) 0, transparent 50%), radial-gradient(at 100% 100%, hsla(217,40%,20%,1) 0, transparent 50%);
+    @apply bg-background text-foreground font-body antialiased;
+    background-image:
+      radial-gradient(700px 500px at 10% -10%, hsla(347,83%,70%,0.15) 0, transparent 55%),
+      radial-gradient(700px 500px at 110% 10%, hsla(200,90%,70%,0.12) 0, transparent 55%);
     background-attachment: fixed;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-bold tracking-tight;
-  }
 
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-background;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full hover:bg-muted-foreground/50 transition-colors;
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
   }
 }
 
 @layer utilities {
-  .glass-card {
-    @apply bg-card/60 backdrop-blur-md border border-white/5 shadow-xl;
-  }
-  .neon-glow {
-    box-shadow: 0 0 20px -5px theme('colors.primary.DEFAULT');
-  }
-  .gold-glow {
-    box-shadow: 0 0 20px -5px theme('colors.secondary.DEFAULT');
-  }
-  .text-glow {
-    text-shadow: 0 0 10px currentColor;
+  .surface-card {
+    @apply bg-card/90 backdrop-blur-xl border border-border/60 shadow-[0_18px_50px_-35px_rgba(0,0,0,0.45)];
   }
 }
+

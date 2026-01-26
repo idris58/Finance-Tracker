@@ -11,11 +11,16 @@ export const insertSettingsSchema = z.object({
   isSetupComplete: z.boolean().default(false),
 });
 
+export const transactionTypeSchema = z.enum(["expense", "income", "loan"]);
+export const loanTypeSchema = z.enum(["borrow", "lend"]);
+export const loanStatusSchema = z.enum(["open", "settled"]);
+
 export const insertCategorySchema = z.object({
   name: z.string().min(1),
   monthlyLimit: z.string().default("0"),
   color: z.string().default("#39ff14"),
   isFixed: z.boolean().default(false),
+  type: transactionTypeSchema.default("expense"),
 });
 
 export const insertTransactionSchema = z.object({
@@ -24,8 +29,13 @@ export const insertTransactionSchema = z.object({
   categoryName: z.string().optional().nullable(),
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
   paymentMethod: z.string().min(1),
+  accountId: z.number().optional().nullable(),
+  counterparty: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
   isRecurring: z.boolean().default(false),
+  type: transactionTypeSchema.default("expense"),
+  loanType: loanTypeSchema.optional().nullable(),
+  loanStatus: loanStatusSchema.optional().nullable(),
 });
 
 export const insertAccountSchema = z.object({
@@ -55,6 +65,7 @@ export interface Category {
   monthlyLimit: string;
   color: string;
   isFixed: boolean;
+  type: "expense" | "income" | "loan";
 }
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
@@ -66,8 +77,13 @@ export interface Transaction {
   categoryName?: string | null;
   date: Date;
   paymentMethod: string;
+  accountId?: number | null;
+  counterparty?: string | null;
   note?: string | null;
   isRecurring: boolean;
+  type: "expense" | "income" | "loan";
+  loanType?: "borrow" | "lend" | null;
+  loanStatus?: "open" | "settled" | null;
 }
 
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
@@ -92,10 +108,8 @@ export type UpdateAccountRequest = Partial<InsertAccount>;
 // === API RESPONSE TYPES ===
 export type DashboardStatsResponse = {
   totalBalance: number;
-  safeToSpendDaily: number;
-  daysRemaining: number;
-  monthlySpent: number;
-  monthlyIncome: number;
-  fixedBills: number;
-  savingsGoal: number;
+  totalIncome: number;
+  totalExpense: number;
+  totalBorrow: number;
+  totalLend: number;
 };

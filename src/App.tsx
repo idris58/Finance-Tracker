@@ -7,11 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { storage } from "@/lib/storage";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/Layout";
+import { ThemeProvider } from "next-themes";
+import { TransactionEditorProvider } from "@/components/TransactionEditorProvider";
 
 // Lazy load pages for better performance (optional, but good practice)
-import Dashboard from "@/pages/Dashboard";
+import HomePage from "@/pages/Home";
+import StatisticsPage from "@/pages/Statistics";
+import AccountsPage from "@/pages/Accounts";
 import TransactionsPage from "@/pages/Transactions";
-import BudgetPage from "@/pages/Budget";
 import SettingsPage from "@/pages/Settings";
 import WelcomePage from "@/pages/Welcome";
 
@@ -23,16 +26,17 @@ function AppRouter() {
   });
 
   // Show welcome screen if setup is not complete (unless already on welcome/settings)
-  if (!isLoading && settings && !settings.isSetupComplete && location !== '/settings') {
+  if (!isLoading && settings && !settings.isSetupComplete) {
     return <WelcomePage />;
   }
 
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/" component={HomePage} />
+        <Route path="/statistics" component={StatisticsPage} />
+        <Route path="/accounts" component={AccountsPage} />
         <Route path="/transactions" component={TransactionsPage} />
-        <Route path="/budget" component={BudgetPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
@@ -43,12 +47,16 @@ function AppRouter() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <WouterRouter>
-        <TooltipProvider>
-          <AppRouter />
-          <Toaster />
-        </TooltipProvider>
-      </WouterRouter>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <TransactionEditorProvider>
+          <WouterRouter>
+            <TooltipProvider>
+              <AppRouter />
+              <Toaster />
+            </TooltipProvider>
+          </WouterRouter>
+        </TransactionEditorProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

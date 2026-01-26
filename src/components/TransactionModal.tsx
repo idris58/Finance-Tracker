@@ -1,21 +1,21 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTransactionSchema } from "@shared/schema";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { useCreateTransaction, useCategories } from "@/hooks/use-finance";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { format } from "date-fns";
+import { CalendarIcon, Plus } from "lucide-react";
+import { insertTransactionSchema, type Transaction } from "@shared/schema";
+import { useAccounts, useCategories, useCreateTransaction, useSettings, useUpdateTransaction } from "@/hooks/use-finance";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Check, Utensils, Bus, ShoppingBag, Zap, Wallet, CreditCard, Smartphone, Plus, CalendarIcon } from "lucide-react";
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CategoryManagementModal } from "./CategoryManagementModal";
+import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getCategoryIcon } from "@/lib/category-icons";
 
-// Add safe parsing for the form
 const formSchema = insertTransactionSchema.extend({
   amount: z.string()
     .min(1, "Please enter an amount")
@@ -29,10 +29,33 @@ const formSchema = insertTransactionSchema.extend({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function TransactionModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { mutate, isPending } = useCreateTransaction();
+type TxType = "expense" | "income" | "loan";
+
+const typeTabs: { id: TxType; label: string }[] = [
+  { id: "expense", label: "Expenses" },
+  { id: "income", label: "Income" },
+  { id: "loan", label: "Loan" },
+];
+
+
+export function TransactionModal({
+  open,
+  onOpenChange,
+  transaction,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction?: Transaction;
+}) {
+  const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
+  const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
   const { data: categories } = useCategories();
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const { data: accounts } = useAccounts();
+  const { data: settings } = useSettings();
+  const [activeType, setActiveType] = useState<TxType>("expense");
+
+  const currency = settings?.currencySymbol || "$";
+  const cashAccount = accounts?.find((acc) => acc.name === "Cash");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -40,65 +63,130 @@ export function TransactionModal({ open, onOpenChange }: { open: boolean; onOpen
       amount: "",
       categoryId: 0,
       paymentMethod: "Cash",
+      accountId: cashAccount?.id ?? null,
+      counterparty: "",
       note: "",
       isRecurring: false,
       date: new Date(),
+      type: "expense",
+      loanType: null,
+      loanStatus: "open",
     },
   });
 
-  // Reset form when modal opens
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    if (transaction && transaction.id) {
+      setActiveType(transaction.type ?? "expense");
       form.reset({
-        amount: "",
-        categoryId: 0,
-        paymentMethod: "Cash",
-        note: "",
-        isRecurring: false,
-        date: new Date(),
+        amount: transaction.amount?.toString() ?? "",
+        categoryId: transaction.categoryId ?? 0,
+        paymentMethod: transaction.paymentMethod ?? "Cash",
+        accountId: transaction.accountId ?? cashAccount?.id ?? null,
+        counterparty: transaction.counterparty ?? "",
+        note: transaction.note ?? "",
+        isRecurring: transaction.isRecurring ?? false,
+        date: transaction.date ? new Date(transaction.date) : new Date(),
+        type: transaction.type ?? "expense",
+        loanType: transaction.loanType ?? null,
+        loanStatus: transaction.loanStatus ?? (transaction.type === "loan" ? "open" : null),
       });
+      return;
     }
-  }, [open, form]);
+
+    setActiveType("expense");
+    form.reset({
+      amount: "",
+      categoryId: 0,
+      paymentMethod: "Cash",
+      accountId: cashAccount?.id ?? null,
+      counterparty: "",
+      note: "",
+      isRecurring: false,
+      date: new Date(),
+      type: "expense",
+      loanType: null,
+      loanStatus: "open",
+    });
+  }, [open, cashAccount?.id, form, transaction]);
 
   const onSubmit = (values: FormValues) => {
-    mutate({
-      ...values,
-      amount: values.amount.toString(), // Ensure string for schema
-    }, {
-      onSuccess: () => onOpenChange(false),
-    });
+    if (transaction?.id) {
+      updateTransaction(
+        { id: transaction.id, data: { ...values, amount: values.amount.toString() } },
+        { onSuccess: () => onOpenChange(false) }
+      );
+      return;
+    }
+
+    createTransaction(
+      { ...values, amount: values.amount.toString() },
+      { onSuccess: () => onOpenChange(false) }
+    );
   };
 
-  const paymentMethods = [
-    { id: "Cash", icon: Wallet },
-    { id: "Bank", icon: CreditCard },
-    { id: "Bkash", icon: Smartphone },
-    { id: "Nagad", icon: Smartphone },
-  ];
+  const filteredCategories = useMemo(() => {
+    const list = categories || [];
+    return list.filter((cat) => cat.type === activeType);
+  }, [categories, activeType]);
+
+  const handleTypeChange = (type: TxType) => {
+    setActiveType(type);
+    form.setValue("type", type);
+    if (type !== "loan") {
+      form.setValue("loanType", null);
+      form.setValue("loanStatus", null);
+    } else {
+      form.setValue("loanStatus", "open");
+    }
+    form.setValue("categoryId", 0);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-white/10 sm:max-w-md w-[95vw] max-w-[95vw] sm:w-full max-h-[85vh] flex flex-col rounded-2xl p-4 sm:p-5">
-        <DialogHeader>
-          <DialogTitle className="text-center font-display text-lg sm:text-xl">Add Transaction</DialogTitle>
-        </DialogHeader>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="rounded-t-3xl border border-border/60 bg-background">
+        <DrawerHeader className="text-left">
+          <DrawerTitle className="text-lg">
+            {transaction?.id ? "Edit transaction" : "New transaction"}
+          </DrawerTitle>
+        </DrawerHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4 mt-2 overflow-y-auto flex-1">
-            {/* Big Amount Input */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4 pb-6">
+            <div className="flex gap-3">
+              {typeTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTypeChange(tab.id)}
+                  className={cn(
+                    "flex-1 rounded-full border px-4 py-2 text-sm font-semibold",
+                    activeType === tab.id
+                      ? "border-primary/40 bg-primary text-primary-foreground"
+                      : "border-border/60 bg-card/70 text-muted-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <FormField
               control={form.control}
               name="amount"
               render={({ field }) => (
-                <FormItem className="text-center">
-                  <div className="relative inline-block w-full">
-                    <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-lg sm:text-xl font-light">৳</span>
-                    <Input 
+                <FormItem>
+                  <FormLabel>Amount</FormLabel>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      {currency}
+                    </span>
+                    <Input
                       {...field}
-                      type="number" 
+                      type="number"
                       placeholder="0.00"
-                      className="text-xl sm:text-3xl font-bold text-center h-14 sm:h-16 bg-background/50 border-2 border-primary/20 focus-visible:border-primary focus-visible:ring-0 rounded-xl placeholder:text-muted-foreground/30 font-display pl-8 sm:pl-12 text-sm"
-                      autoFocus
+                      className="pl-8 text-lg font-semibold"
                     />
                   </div>
                   <FormMessage />
@@ -106,149 +194,165 @@ export function TransactionModal({ open, onOpenChange }: { open: boolean; onOpen
               )}
             />
 
-            {/* Category Grid */}
             <FormField
               control={form.control}
               name="categoryId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground ml-1 text-xs sm:text-sm">Category</FormLabel>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {categories?.map((cat) => (
+                  <FormLabel>Category</FormLabel>
+                  <div className="grid grid-cols-4 gap-3">
+                    {filteredCategories.map((cat) => (
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => field.onChange(cat.id)}
+                        onClick={() => {
+                          field.onChange(cat.id);
+                          if (activeType === "loan") {
+                            form.setValue("loanType", cat.name.toLowerCase().includes("borrow") ? "borrow" : "lend");
+                          }
+                        }}
                         className={cn(
-                          "flex flex-col items-center gap-0.5 p-1 rounded-lg transition-all border border-transparent hover:bg-white/5",
-                          field.value === cat.id ? "bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(57,255,20,0.15)]" : "bg-muted/50 text-muted-foreground"
+                          "flex flex-col items-center gap-1 rounded-2xl border px-2 py-2 text-xs font-medium",
+                          field.value === cat.id
+                            ? "border-primary/50 bg-primary/10 text-primary"
+                            : "border-border/60 bg-card/70 text-muted-foreground"
                         )}
                       >
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-background flex items-center justify-center">
-                          {/* Generic fallback icon logic - ideally categories would store icon name */}
-                          {cat.name.includes("Food") ? <Utensils className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> :
-                           cat.name.includes("Transport") ? <Bus className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> :
-                           cat.name.includes("Shop") ? <ShoppingBag className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> :
-                           <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-background">
+                          {(() => {
+                            const entry = getCategoryIcon(cat.name);
+                            const Icon = entry.icon;
+                            return <Icon className={cn("h-4 w-4", entry.className)} />;
+                          })()}
                         </div>
-                        <span className="text-[8px] sm:text-[9px] font-medium truncate w-full text-center">{cat.name}</span>
+                        <span className="truncate">{cat.name}</span>
                       </button>
                     ))}
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center gap-0.5 p-1 rounded-lg border border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-white/5 hover:border-muted-foreground transition-colors"
-                      onClick={() => setShowCategoryModal(true)}
-                    >
-                       <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                       <span className="text-[8px] sm:text-[9px]">New</span>
-                    </button>
                   </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Date Picker */}
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel className="text-muted-foreground ml-1 text-xs sm:text-sm">Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="accountId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account</FormLabel>
+                    <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
                       <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal bg-background/50 border-white/10 text-xs sm:text-sm h-9",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-3.5 w-3.5 opacity-50" />
-                        </Button>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account" />
+                        </SelectTrigger>
                       </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-card border-white/10 sm:translate-x-0" align="start" side="bottom" sideOffset={4}>
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      <SelectContent>
+                        {(accounts || []).map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>
+                            {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
 
-            {/* Payment Method */}
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className="w-full justify-between">
+                            {field.value ? format(field.value, "PPP") : "Pick a date"}
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {activeType === "loan" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="counterparty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{form.watch("loanType") === "borrow" ? "Lender" : "Borrower"}</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ""} placeholder="Add a description" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="loanStatus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select value={field.value || "open"} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="settled">Settled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
             <FormField
               control={form.control}
-              name="paymentMethod"
+              name="note"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground ml-1 text-xs sm:text-sm">Payment Method</FormLabel>
-                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                    {paymentMethods.map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => field.onChange(method.id)}
-                        className={cn(
-                          "flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full border transition-all text-[11px] sm:text-xs font-medium whitespace-nowrap",
-                          field.value === method.id 
-                            ? "bg-secondary/10 border-secondary text-secondary shadow-[0_0_10px_rgba(255,215,0,0.2)]" 
-                            : "bg-muted/30 border-white/5 text-muted-foreground hover:bg-muted/50"
-                        )}
-                      >
-                        <method.icon className="w-3 h-3" />
-                        {method.id}
-                        {field.value === method.id && <Check className="w-2.5 h-2.5 ml-0.5" />}
-                      </button>
-                    ))}
-                  </div>
-                  <FormMessage />
+                  <FormLabel>Note</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value || ""} placeholder="Add a description" />
+                  </FormControl>
                 </FormItem>
               )}
             />
-            
-            <FormField
-                control={form.control}
-                name="note"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormControl>
-                            <Input {...field} value={field.value || ""} placeholder="Add a note (optional)" className="bg-muted/30 border-white/5" />
-                        </FormControl>
-                    </FormItem>
-                )}
-            />
 
-            <Button 
-              type="submit" 
-              className="w-full h-11 sm:h-12 text-base sm:text-lg font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all neon-glow"
-              disabled={isPending || !form.watch("amount") || parseFloat(form.watch("amount") || "0") <= 0 || !form.watch("categoryId")}
+            <Button
+              type="submit"
+              className="w-full rounded-2xl"
+              disabled={isCreating || isUpdating || !form.watch("amount") || parseFloat(form.watch("amount") || "0") <= 0 || !form.watch("categoryId")}
             >
-              {isPending ? "Saving..." : "Save Transaction"}
+              {transaction?.id
+                ? (isUpdating ? "Saving..." : "Update")
+                : (isCreating ? "Saving..." : "Save")}
             </Button>
           </form>
         </Form>
-      </DialogContent>
-
-      <CategoryManagementModal 
-        open={showCategoryModal} 
-        onOpenChange={setShowCategoryModal}
-      />
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 }
+
+

@@ -1,4 +1,4 @@
-import { db, type Settings, type Category, type Transaction, type Account } from './db';
+﻿import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account } from './db';
 
 export interface IStorage {
   // Settings
@@ -15,6 +15,7 @@ export interface IStorage {
   // Transactions
   getTransactions(month?: string, categoryId?: number, limit?: number): Promise<Transaction[]>;
   createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction>;
+  updateTransaction(id: number, updates: Partial<Omit<Transaction, 'id'>>): Promise<Transaction>;
   deleteTransaction(id: number): Promise<void>;
 
   // Accounts
@@ -23,10 +24,10 @@ export interface IStorage {
   createAccount(account: Omit<Account, 'id'>): Promise<Account>;
   updateAccount(id: number, updates: Partial<Omit<Account, 'id'>>): Promise<Account>;
   deleteAccount(id: number): Promise<void>;
-  
+
   // Bulk (for Import)
   importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void>;
-  
+
   // Reset all data
   resetAllData(): Promise<void>;
 }
@@ -47,7 +48,6 @@ export class LocalStorage implements IStorage {
       const id = await db.settings.add(defaultSettings);
       return { ...defaultSettings, id } as Settings;
     }
-    // Convert date string to Date if needed
     return {
       ...existing,
       updatedAt: existing.updatedAt instanceof Date ? existing.updatedAt : (existing.updatedAt ? new Date(existing.updatedAt as any) : undefined),
@@ -107,42 +107,68 @@ export class LocalStorage implements IStorage {
     let query = db.transactions.orderBy('date').reverse();
 
     if (month) {
-      // month format: YYYY-MM
       const startOfMonth = new Date(`${month}-01`);
       const endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 0);
       endOfMonth.setHours(23, 59, 59, 999);
 
-      query = query.filter(tx => {
+      query = query.filter((tx) => {
         const txDate = new Date(tx.date);
         const matchesMonth = txDate >= startOfMonth && txDate <= endOfMonth;
         const matchesCategory = categoryId === undefined || tx.categoryId === categoryId;
         return matchesMonth && matchesCategory;
       });
     } else if (categoryId !== undefined) {
-      query = query.filter(tx => tx.categoryId === categoryId);
+      query = query.filter((tx) => tx.categoryId === categoryId);
     }
 
     const transactions = await query.toArray();
-    
-    // Convert date strings back to Date objects
-    const transactionsWithDates = transactions.map(tx => ({
+
+    const transactionsWithDates = transactions.map((tx) => ({
       ...tx,
       date: tx.date instanceof Date ? tx.date : new Date(tx.date),
     }));
-    
+
     if (limit) {
       return transactionsWithDates.slice(0, limit);
     }
-    
+
     return transactionsWithDates;
   }
 
   async createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
-    // Enrich with category name if missing and category ID is present
     if (transaction.categoryId && !transaction.categoryName) {
       const cat = await this.getCategory(transaction.categoryId);
       if (cat) {
         transaction.categoryName = cat.name;
+        if (!transaction.type) {
+          transaction.type = cat.type;
+        }
+      }
+    }
+
+    if (!transaction.type) {
+      transaction.type = 'expense';
+    }
+
+    if (transaction.type === 'loan' && !transaction.loanType) {
+      transaction.loanType = transaction.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
+    }
+
+    if (transaction.type === 'loan' && !transaction.loanStatus) {
+      transaction.loanStatus = 'open';
+    }
+
+    if (transaction.accountId) {
+      const account = await this.getAccount(transaction.accountId);
+      if (account) {
+        transaction.paymentMethod = account.name;
+      }
+    }
+
+    if (!transaction.accountId && transaction.paymentMethod) {
+      const account = await db.accounts.where('name').equals(transaction.paymentMethod).first();
+      if (account) {
+        transaction.accountId = account.id!;
       }
     }
 
@@ -150,15 +176,130 @@ export class LocalStorage implements IStorage {
       ...transaction,
       date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
     } as Transaction);
-    
+
     const created = await db.transactions.get(id);
     if (!created) {
       throw new Error('Failed to create transaction');
     }
+
+    if (transaction.accountId) {
+      const account = await this.getAccount(transaction.accountId);
+      if (account) {
+        const amount = Number(transaction.amount);
+        let delta = 0;
+        if (transaction.type === 'income') delta = amount;
+        if (transaction.type === 'expense') delta = -amount;
+        if (transaction.type === 'loan') {
+          delta = transaction.loanType === 'borrow' ? amount : -amount;
+        }
+        const newBalance = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+      }
+    }
+
     return created;
   }
 
+  async updateTransaction(id: number, updates: Partial<Omit<Transaction, 'id'>>): Promise<Transaction> {
+    const existing = await db.transactions.get(id);
+    if (!existing) {
+      throw new Error('Transaction not found');
+    }
+
+    const merged: Transaction = {
+      ...existing,
+      ...updates,
+      date: updates.date ? (updates.date instanceof Date ? updates.date : new Date(updates.date)) : existing.date,
+    };
+
+    if (merged.categoryId && merged.categoryId !== existing.categoryId) {
+      const cat = await this.getCategory(merged.categoryId);
+      if (cat) {
+        merged.categoryName = cat.name;
+        merged.type = cat.type;
+      }
+    }
+
+    if (merged.type === 'loan' && !merged.loanType) {
+      merged.loanType = merged.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
+    }
+    if (merged.type === 'loan' && !merged.loanStatus) {
+      merged.loanStatus = 'open';
+    }
+
+    if (merged.accountId) {
+      const account = await this.getAccount(merged.accountId);
+      if (account) {
+        merged.paymentMethod = account.name;
+      }
+    }
+
+    if (!merged.accountId && merged.paymentMethod) {
+      const account = await db.accounts.where('name').equals(merged.paymentMethod).first();
+      if (account) {
+        merged.accountId = account.id!;
+      }
+    }
+
+    const computeDelta = (tx: Transaction) => {
+      const amount = Number(tx.amount);
+      if (tx.type === 'income') return amount;
+      if (tx.type === 'loan') return tx.loanType === 'borrow' ? amount : -amount;
+      return -amount;
+    };
+
+    const oldDelta = computeDelta(existing);
+    const newDelta = computeDelta(merged);
+
+    if (existing.accountId && existing.accountId === merged.accountId) {
+      const account = await this.getAccount(existing.accountId);
+      if (account) {
+        const delta = newDelta - oldDelta;
+        const next = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: next.toString() });
+      }
+    } else {
+      if (existing.accountId) {
+        const oldAccount = await this.getAccount(existing.accountId);
+        if (oldAccount) {
+          const next = Number(oldAccount.balance || 0) - oldDelta;
+          await this.updateAccount(oldAccount.id!, { balance: next.toString() });
+        }
+      }
+      if (merged.accountId) {
+        const newAccount = await this.getAccount(merged.accountId);
+        if (newAccount) {
+          const next = Number(newAccount.balance || 0) + newDelta;
+          await this.updateAccount(newAccount.id!, { balance: next.toString() });
+        }
+      }
+    }
+
+    await db.transactions.update(id, merged);
+    const updated = await db.transactions.get(id);
+    if (!updated) {
+      throw new Error('Failed to update transaction');
+    }
+    return updated;
+  }
+
   async deleteTransaction(id: number): Promise<void> {
+    const existing = await db.transactions.get(id);
+    if (existing?.accountId) {
+      const account = await this.getAccount(existing.accountId);
+      if (account) {
+        const amount = Number(existing.amount);
+        let delta = 0;
+        if ((existing.type || 'expense') === 'income') delta = -amount;
+        if ((existing.type || 'expense') === 'expense') delta = amount;
+        if (existing.type === 'loan') {
+          delta = existing.loanType === 'borrow' ? -amount : amount;
+        }
+        const newBalance = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+      }
+    }
+
     await db.transactions.delete(id);
   }
 
@@ -193,7 +334,6 @@ export class LocalStorage implements IStorage {
   }
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void> {
-    // 1. Update Settings
     if (data.settings) {
       await this.updateSettings({
         monthlyIncome: data.settings.monthlyIncome,
@@ -205,7 +345,6 @@ export class LocalStorage implements IStorage {
       });
     }
 
-    // 2. Categories - upsert based on name to avoid duplicates
     if (data.categories && data.categories.length > 0) {
       for (const cat of data.categories) {
         const existing = await db.categories.where('name').equals(cat.name).first();
@@ -214,6 +353,7 @@ export class LocalStorage implements IStorage {
             monthlyLimit: cat.monthlyLimit,
             color: cat.color,
             isFixed: cat.isFixed,
+            type: cat.type ?? 'expense',
           });
         } else {
           await this.createCategory({
@@ -221,34 +361,12 @@ export class LocalStorage implements IStorage {
             monthlyLimit: cat.monthlyLimit,
             color: cat.color,
             isFixed: cat.isFixed,
+            type: cat.type ?? 'expense',
           });
         }
       }
     }
 
-    // 3. Transactions
-    if (data.transactions && data.transactions.length > 0) {
-      for (const tx of data.transactions) {
-        // Find category ID by name if possible
-        let catId = tx.categoryId;
-        if (tx.categoryName) {
-          const cat = await db.categories.where('name').equals(tx.categoryName).first();
-          if (cat) catId = cat.id!;
-        }
-
-        await this.createTransaction({
-          amount: tx.amount,
-          categoryId: catId ?? null,
-          categoryName: tx.categoryName ?? null,
-          date: new Date(tx.date),
-          paymentMethod: tx.paymentMethod,
-          note: tx.note ?? null,
-          isRecurring: tx.isRecurring,
-        });
-      }
-    }
-
-    // 4. Accounts
     if (data.accounts && data.accounts.length > 0) {
       for (const acc of data.accounts) {
         const existing = await db.accounts.where('name').equals(acc.name).first();
@@ -266,27 +384,48 @@ export class LocalStorage implements IStorage {
         }
       }
     }
+
+    if (data.transactions && data.transactions.length > 0) {
+      for (const tx of data.transactions) {
+        let catId = tx.categoryId;
+        if (tx.categoryName) {
+          const cat = await db.categories.where('name').equals(tx.categoryName).first();
+          if (cat) catId = cat.id!;
+        }
+
+        let accountId = tx.accountId ?? null;
+        if (!accountId && tx.paymentMethod) {
+          const account = await db.accounts.where('name').equals(tx.paymentMethod).first();
+          if (account) accountId = account.id!;
+        }
+
+        await this.createTransaction({
+          amount: tx.amount,
+          categoryId: catId ?? null,
+          categoryName: tx.categoryName ?? null,
+          date: new Date(tx.date),
+          paymentMethod: tx.paymentMethod,
+          accountId,
+          counterparty: tx.counterparty ?? null,
+          note: tx.note ?? null,
+          isRecurring: tx.isRecurring,
+          type: tx.type ?? 'expense',
+          loanType: tx.loanType ?? null,
+          loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
+        });
+      }
+    }
   }
 
   async resetAllData(): Promise<void> {
-    // Clear all tables
     await db.settings.clear();
     await db.categories.clear();
     await db.transactions.clear();
     await db.accounts.clear();
-    
-    // Reinitialize settings with defaults
-    const defaultSettings: Omit<Settings, 'id'> = {
-      monthlyIncome: '0',
-      savingsGoal: '0',
-      fixedBillsTotal: '0',
-      currencySymbol: '৳',
-      currentBalance: '0',
-      isSetupComplete: false,
-      updatedAt: new Date(),
-    };
-    await db.settings.add(defaultSettings);
+
+    await initializeDatabase();
   }
 }
 
 export const storage = new LocalStorage();
+

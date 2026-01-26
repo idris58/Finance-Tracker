@@ -129,6 +129,26 @@ export function useCreateTransaction() {
   });
 }
 
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertTransaction> }) => {
+      return await storage.updateTransaction(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({ title: "Transaction updated", description: "Changes saved successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update transaction.", variant: "destructive" });
+    }
+  });
+}
+
 export function useDeleteTransaction() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -208,40 +228,32 @@ export function useStats() {
   return useQuery({
     queryKey: ['stats'],
     queryFn: async (): Promise<DashboardStatsResponse> => {
-      const settings = await storage.getSettings();
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      
-      // Get this month's transactions
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const transactions = await storage.getTransactions(month);
 
-      const monthlySpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-      const daysInMonth = endOfMonth.getDate();
-      const daysRemaining = daysInMonth - now.getDate();
-      
-      const monthlyIncome = Number(settings.monthlyIncome);
-      const fixedBills = Number(settings.fixedBillsTotal);
-      const savingsGoal = Number(settings.savingsGoal);
-      
-      // Calculate total balance from all accounts
       const accounts = await storage.getAccounts();
       const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
 
-      // Formula: STS = (Total Balance + Income - Fixed - Savings - Spent) / Days Remaining
-      // For the month: Start with total balance, add income, subtract commitments and spent
-      const available = totalBalance + monthlyIncome - fixedBills - savingsGoal - monthlySpent;
-      const safeToSpendDaily = daysRemaining > 0 ? Math.max(0, available / daysRemaining) : 0;
+      const totalExpense = transactions
+        .filter((tx) => tx.type === 'expense')
+        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const totalIncome = transactions
+        .filter((tx) => tx.type === 'income')
+        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const totalBorrow = transactions
+        .filter((tx) => tx.type === 'loan' && tx.loanType === 'borrow')
+        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const totalLend = transactions
+        .filter((tx) => tx.type === 'loan' && tx.loanType === 'lend')
+        .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
       return {
-        totalBalance: available, // Return available amount as totalBalance for dashboard display
-        safeToSpendDaily,
-        daysRemaining,
-        monthlySpent,
-        monthlyIncome,
-        fixedBills,
-        savingsGoal
+        totalBalance,
+        totalIncome,
+        totalExpense,
+        totalBorrow,
+        totalLend,
       };
     },
   });
@@ -256,8 +268,9 @@ export function useExportData() {
       const settings = await storage.getSettings();
       const categories = await storage.getCategories();
       const transactions = await storage.getTransactions();
+      const accounts = await storage.getAccounts();
       
-      const data = { settings, categories, transactions };
+      const data = { settings, categories, transactions, accounts };
       
       // Trigger download
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -282,7 +295,8 @@ export function useImportData() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[] }) => {
+    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }) => {
+      await storage.resetAllData();
       await storage.importData(data);
       return { success: true, count: data.transactions?.length || 0 };
     },

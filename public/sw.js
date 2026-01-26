@@ -1,5 +1,5 @@
-// Service Worker for Finance Tracker PWA
-const CACHE_NAME = 'finance-tracker-v1';
+// Service Worker for Finance Hub PWA
+const CACHE_NAME = 'finance-hub-v1';
 const urlsToCache = [
   '/',
   '/index.html',

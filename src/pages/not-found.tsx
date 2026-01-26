@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export default function NotFound() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md mx-4 glass-card border-white/10">
+      <Card className="w-full max-w-md mx-4 border-border/60 bg-card/90">
         <CardContent className="pt-6">
           <div className="flex mb-4 gap-2">
             <AlertCircle className="h-8 w-8 text-destructive" />
@@ -19,8 +19,8 @@ export default function NotFound() {
 
           <div className="mt-8">
             <Link href="/">
-              <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 neon-glow">
-                 Back to Dashboard
+              <Button className="w-full rounded-2xl">
+                Back to Home
               </Button>
             </Link>
           </div>
