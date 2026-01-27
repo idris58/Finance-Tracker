@@ -30,6 +30,7 @@ export const insertTransactionSchema = z.object({
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
   paymentMethod: z.string().min(1),
   accountId: z.number().optional().nullable(),
+  loanSettlementAccountId: z.number().optional().nullable(),
   counterparty: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
   isRecurring: z.boolean().default(false),
@@ -78,6 +79,7 @@ export interface Transaction {
   date: Date;
   paymentMethod: string;
   accountId?: number | null;
+  loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
   isRecurring: boolean;

@@ -29,6 +29,7 @@ export interface Transaction {
   date: Date;
   paymentMethod: string;
   accountId?: number | null;
+  loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
   isRecurring: boolean;
@@ -140,6 +141,24 @@ class FinanceDatabase extends Dexie {
         if (!('loanStatus' in txRow)) {
           const status = txRow.type === 'loan' ? 'open' : null;
           await tx.table('transactions').update(txRow.id, { loanStatus: status });
+        }
+      }
+    });
+
+    // Migration: Add loanSettlementAccountId field
+    this.version(6).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type',
+      accounts: '++id, name',
+    }).upgrade(async (tx) => {
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const txRow of transactions) {
+        if (!('loanSettlementAccountId' in txRow)) {
+          const settlementAccountId = txRow.type === 'loan' && txRow.loanStatus === 'settled'
+            ? (txRow.accountId ?? null)
+            : null;
+          await tx.table('transactions').update(txRow.id, { loanSettlementAccountId: settlementAccountId });
         }
       }
     });

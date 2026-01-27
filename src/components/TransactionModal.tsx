@@ -3,9 +3,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { CalendarIcon, Plus } from "lucide-react";
+import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
-import { useAccounts, useCategories, useCreateTransaction, useSettings, useUpdateTransaction } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useSettings, useUpdateTransaction } from "@/hooks/use-finance";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getCategoryIcon } from "@/lib/category-icons";
 
 const formSchema = insertTransactionSchema.extend({
@@ -49,10 +50,12 @@ export function TransactionModal({
 }) {
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
+  const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
   const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
+  const [isDateOpen, setIsDateOpen] = useState(false);
 
   const currency = settings?.currencySymbol || "$";
   const cashAccount = accounts?.find((acc) => acc.name === "Cash");
@@ -64,6 +67,7 @@ export function TransactionModal({
       categoryId: 0,
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
+      loanSettlementAccountId: null,
       counterparty: "",
       note: "",
       isRecurring: false,
@@ -84,6 +88,7 @@ export function TransactionModal({
         categoryId: transaction.categoryId ?? 0,
         paymentMethod: transaction.paymentMethod ?? "Cash",
         accountId: transaction.accountId ?? cashAccount?.id ?? null,
+        loanSettlementAccountId: transaction.loanSettlementAccountId ?? (transaction.loanStatus === "settled" ? transaction.accountId ?? null : null),
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
         isRecurring: transaction.isRecurring ?? false,
@@ -101,6 +106,7 @@ export function TransactionModal({
       categoryId: 0,
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
+      loanSettlementAccountId: null,
       counterparty: "",
       note: "",
       isRecurring: false,
@@ -137,6 +143,7 @@ export function TransactionModal({
     if (type !== "loan") {
       form.setValue("loanType", null);
       form.setValue("loanStatus", null);
+      form.setValue("loanSettlementAccountId", null);
     } else {
       form.setValue("loanStatus", "open");
     }
@@ -145,7 +152,7 @@ export function TransactionModal({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="rounded-t-3xl border border-border/60 bg-background">
+      <DrawerContent className="flex h-[90dvh] flex-col rounded-t-3xl border border-border/60 bg-background">
         <DrawerHeader className="text-left">
           <DrawerTitle className="text-lg">
             {transaction?.id ? "Edit transaction" : "New transaction"}
@@ -153,7 +160,10 @@ export function TransactionModal({
         </DrawerHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4 pb-6">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex-1 space-y-4 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)]"
+          >
             <div className="flex gap-3">
               {typeTabs.map((tab) => (
                 <button
@@ -240,7 +250,7 @@ export function TransactionModal({
                 name="accountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Account</FormLabel>
+                    <FormLabel>{activeType === "loan" ? "Source account" : "Account"}</FormLabel>
                     <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
                       <FormControl>
                         <SelectTrigger>
@@ -265,7 +275,7 @@ export function TransactionModal({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date</FormLabel>
-                    <Popover>
+                    <Popover onOpenChange={(value) => setIsDateOpen(value)} open={isDateOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant="outline" className="w-full justify-between">
@@ -278,7 +288,10 @@ export function TransactionModal({
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsDateOpen(false);
+                          }}
                           disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                           initialFocus
                         />
@@ -309,7 +322,20 @@ export function TransactionModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select value={field.value || "open"} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value || "open"}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          if (value === "settled") {
+                            const current = form.getValues("loanSettlementAccountId");
+                            if (!current) {
+                              form.setValue("loanSettlementAccountId", form.getValues("accountId") ?? null);
+                            }
+                          } else {
+                            form.setValue("loanSettlementAccountId", null);
+                          }
+                        }}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />
@@ -323,6 +349,31 @@ export function TransactionModal({
                     </FormItem>
                   )}
                 />
+                {form.watch("loanStatus") === "settled" && (
+                  <FormField
+                    control={form.control}
+                    name="loanSettlementAccountId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Settlement account</FormLabel>
+                        <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select account" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(accounts || []).map((account) => (
+                              <SelectItem key={account.id} value={String(account.id)}>
+                                {account.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             )}
 
@@ -339,15 +390,61 @@ export function TransactionModal({
               )}
             />
 
-            <Button
-              type="submit"
-              className="w-full rounded-2xl"
-              disabled={isCreating || isUpdating || !form.watch("amount") || parseFloat(form.watch("amount") || "0") <= 0 || !form.watch("categoryId")}
-            >
-              {transaction?.id
-                ? (isUpdating ? "Saving..." : "Update")
-                : (isCreating ? "Saving..." : "Save")}
-            </Button>
+            {transaction?.id ? (
+              <div className="grid grid-cols-2 gap-3">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full rounded-2xl border-destructive/40 text-destructive"
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. The transaction will be permanently removed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          if (!transaction?.id) return;
+                          deleteTransaction(transaction.id, {
+                            onSuccess: () => onOpenChange(false),
+                          });
+                        }}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <Button
+                  type="submit"
+                  className="w-full rounded-2xl"
+                  disabled={isUpdating || !form.watch("amount") || parseFloat(form.watch("amount") || "0") <= 0 || !form.watch("categoryId")}
+                >
+                  {isUpdating ? "Saving..." : "Update"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                className="w-full rounded-2xl"
+                disabled={isCreating || !form.watch("amount") || parseFloat(form.watch("amount") || "0") <= 0 || !form.watch("categoryId")}
+              >
+                {isCreating ? "Saving..." : "Save"}
+              </Button>
+            )}
           </form>
         </Form>
       </DrawerContent>

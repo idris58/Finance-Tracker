@@ -203,7 +203,14 @@ export default function HomePage() {
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
                               {tx.type === "loan" && tx.loanStatus && (
-                                <span className="inline-flex rounded-full bg-muted/70 px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                <span
+                                  className={cn(
+                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                    tx.loanStatus === "settled"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-rose-100 text-rose-700"
+                                  )}
+                                >
                                   {tx.loanStatus}
                                 </span>
                               )}
