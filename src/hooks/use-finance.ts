@@ -3,7 +3,6 @@ import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
 import type { 
   InsertTransaction, 
-  InsertCategory, 
   InsertAccount,
   UpdateSettingsRequest,
   Category,
@@ -48,51 +47,6 @@ export function useCategories() {
     queryKey: ['categories'],
     queryFn: async () => {
       return await storage.getCategories();
-    },
-  });
-}
-
-export function useCreateCategory() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (data: InsertCategory) => {
-      return await storage.createCategory(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({ title: "Category added", description: "New budget category created successfully." });
-    },
-  });
-}
-
-export function useUpdateCategory() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertCategory> }) => {
-      return await storage.updateCategory(id, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({ title: "Category updated", description: "Category updated successfully." });
-    },
-  });
-}
-
-export function useDeleteCategory() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (id: number) => {
-      await storage.deleteCategory(id);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({ title: "Category deleted", description: "Category removed successfully." });
     },
   });
 }

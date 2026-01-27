@@ -3,11 +3,7 @@ import { z } from "zod";
 // === ZOD SCHEMAS ===
 
 export const insertSettingsSchema = z.object({
-  monthlyIncome: z.string().default("0"),
-  savingsGoal: z.string().default("0"),
-  fixedBillsTotal: z.string().default("0"),
-  currencySymbol: z.string().default("৳"),
-  currentBalance: z.string().default("0"),
+  currencySymbol: z.string().default("\u09f3"),
   isSetupComplete: z.boolean().default(false),
 });
 
@@ -49,11 +45,7 @@ export const insertAccountSchema = z.object({
 
 export interface Settings {
   id?: number;
-  monthlyIncome: string;
-  savingsGoal: string;
-  fixedBillsTotal: string;
   currencySymbol: string;
-  currentBalance: string;
   isSetupComplete: boolean;
   updatedAt?: Date;
 }

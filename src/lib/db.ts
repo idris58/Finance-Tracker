@@ -3,11 +3,7 @@
 // Types matching the original schema
 export interface Settings {
   id?: number;
-  monthlyIncome: string;
-  savingsGoal: string;
-  fixedBillsTotal: string;
   currencySymbol: string;
-  currentBalance: string;
   isSetupComplete: boolean;
   updatedAt?: Date;
 }
@@ -60,7 +56,7 @@ class FinanceDatabase extends Dexie {
       transactions: '++id, date, categoryId',
     });
 
-    // Migration: Add currentBalance and isSetupComplete to existing settings
+    // Migration: Ensure isSetupComplete exists on settings
     this.version(2).stores({
       settings: '++id',
       categories: '++id, name',
@@ -68,37 +64,28 @@ class FinanceDatabase extends Dexie {
     }).upgrade(async (tx) => {
       const allSettings = await tx.table('settings').toCollection().toArray();
       for (const setting of allSettings) {
-        if (!('currentBalance' in setting) || !('isSetupComplete' in setting)) {
+        if (!('isSetupComplete' in setting)) {
           await tx.table('settings').update(setting.id, {
-            currentBalance: '0',
             isSetupComplete: false,
           });
         }
       }
     });
 
-    // Migration: Add accounts table and migrate currentBalance to default Cash account
+    // Migration: Add accounts table and ensure a default Cash account exists
     this.version(3).stores({
       settings: '++id',
       categories: '++id, name',
       transactions: '++id, date, categoryId',
       accounts: '++id, name',
     }).upgrade(async (tx) => {
-      const allSettings = await tx.table('settings').toCollection().toArray();
-      for (const setting of allSettings) {
-        const currentBalance = setting.currentBalance || '0';
-        const existingCash = await tx.table('accounts').where('name').equals('Cash').first();
-        if (!existingCash && Number(currentBalance) > 0) {
-          await tx.table('accounts').add({
-            name: 'Cash',
-            type: 'Cash',
-            balance: currentBalance,
-          });
-        } else if (existingCash) {
-          await tx.table('accounts').update(existingCash.id!, {
-            balance: (Number(existingCash.balance) + Number(currentBalance)).toString(),
-          });
-        }
+      const existingCash = await tx.table('accounts').where('name').equals('Cash').first();
+      if (!existingCash) {
+        await tx.table('accounts').add({
+          name: 'Cash',
+          type: 'Cash',
+          balance: '0',
+        });
       }
     });
 
@@ -172,19 +159,14 @@ export async function initializeDatabase() {
   const settingsCount = await db.settings.count();
   if (settingsCount === 0) {
     await db.settings.add({
-      monthlyIncome: '0',
-      savingsGoal: '0',
-      fixedBillsTotal: '0',
       currencySymbol: '৳',
-      currentBalance: '0',
       isSetupComplete: false,
       updatedAt: new Date(),
     });
   } else {
     const existing = await db.settings.orderBy('id').first();
-    if (existing && (!('currentBalance' in existing) || !('isSetupComplete' in existing))) {
+    if (existing && !('isSetupComplete' in existing)) {
       await db.settings.update(existing.id!, {
-        currentBalance: existing.currentBalance || '0',
         isSetupComplete: existing.isSetupComplete !== undefined ? existing.isSetupComplete : false,
       });
     }

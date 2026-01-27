@@ -8,9 +8,6 @@ export interface IStorage {
   // Categories
   getCategories(): Promise<Category[]>;
   getCategory(id: number): Promise<Category | undefined>;
-  createCategory(category: Omit<Category, 'id'>): Promise<Category>;
-  updateCategory(id: number, updates: Partial<Omit<Category, 'id'>>): Promise<Category>;
-  deleteCategory(id: number): Promise<void>;
 
   // Transactions
   getTransactions(month?: string, categoryId?: number, limit?: number): Promise<Transaction[]>;
@@ -53,11 +50,7 @@ export class LocalStorage implements IStorage {
     const existing = await db.settings.orderBy('id').first();
     if (!existing) {
       const defaultSettings: Omit<Settings, 'id'> = {
-        monthlyIncome: '0',
-        savingsGoal: '0',
-        fixedBillsTotal: '0',
         currencySymbol: '৳',
-        currentBalance: '0',
         isSetupComplete: false,
         updatedAt: new Date(),
       };
@@ -65,7 +58,9 @@ export class LocalStorage implements IStorage {
       return { ...defaultSettings, id } as Settings;
     }
     return {
-      ...existing,
+      id: existing.id,
+      currencySymbol: existing.currencySymbol ?? '৳',
+      isSetupComplete: existing.isSetupComplete ?? false,
       updatedAt: existing.updatedAt instanceof Date ? existing.updatedAt : (existing.updatedAt ? new Date(existing.updatedAt as any) : undefined),
     };
   }
@@ -95,28 +90,6 @@ export class LocalStorage implements IStorage {
 
   async getCategory(id: number): Promise<Category | undefined> {
     return await db.categories.get(id);
-  }
-
-  async createCategory(category: Omit<Category, 'id'>): Promise<Category> {
-    const id = await db.categories.add(category as Category);
-    const created = await db.categories.get(id);
-    if (!created) {
-      throw new Error('Failed to create category');
-    }
-    return created;
-  }
-
-  async updateCategory(id: number, updates: Partial<Omit<Category, 'id'>>): Promise<Category> {
-    await db.categories.update(id, updates);
-    const updated = await db.categories.get(id);
-    if (!updated) {
-      throw new Error('Category not found');
-    }
-    return updated;
-  }
-
-  async deleteCategory(id: number): Promise<void> {
-    await db.categories.delete(id);
   }
 
   async getTransactions(month?: string, categoryId?: number, limit?: number): Promise<Transaction[]> {
@@ -387,11 +360,7 @@ export class LocalStorage implements IStorage {
 
     if (data.settings) {
       await this.updateSettings({
-        monthlyIncome: data.settings.monthlyIncome,
-        savingsGoal: data.settings.savingsGoal,
-        fixedBillsTotal: data.settings.fixedBillsTotal,
         currencySymbol: data.settings.currencySymbol,
-        currentBalance: data.settings.currentBalance || '0',
         isSetupComplete: data.settings.isSetupComplete !== undefined ? data.settings.isSetupComplete : true,
       });
     }
@@ -400,20 +369,20 @@ export class LocalStorage implements IStorage {
       for (const cat of data.categories) {
         const existing = await db.categories.where('name').equals(cat.name).first();
         if (existing) {
-          await this.updateCategory(existing.id!, {
+          await db.categories.update(existing.id!, {
             monthlyLimit: cat.monthlyLimit,
             color: cat.color,
             isFixed: cat.isFixed,
             type: cat.type ?? 'expense',
           });
         } else {
-          await this.createCategory({
+          await db.categories.add({
             name: cat.name,
             monthlyLimit: cat.monthlyLimit,
             color: cat.color,
             isFixed: cat.isFixed,
             type: cat.type ?? 'expense',
-          });
+          } as Category);
         }
       }
     }
