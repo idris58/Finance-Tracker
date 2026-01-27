@@ -33,6 +33,22 @@ export interface IStorage {
 }
 
 export class LocalStorage implements IStorage {
+  private getBalanceDelta(tx: Transaction): number {
+    const amount = Number(tx.amount);
+    if ((tx.type || 'expense') === 'income') return amount;
+    if ((tx.type || 'expense') === 'expense') return -amount;
+    if (tx.type === 'loan') {
+      return tx.loanType === 'borrow' ? amount : -amount;
+    }
+    return -amount;
+  }
+
+  private getSettlementDelta(tx: Transaction): number {
+    if (tx.type !== 'loan' || tx.loanStatus !== 'settled') return 0;
+    const amount = Number(tx.amount);
+    return tx.loanType === 'borrow' ? -amount : amount;
+  }
+
   async getSettings(): Promise<Settings> {
     const existing = await db.settings.orderBy('id').first();
     if (!existing) {
@@ -157,6 +173,9 @@ export class LocalStorage implements IStorage {
     if (transaction.type === 'loan' && !transaction.loanStatus) {
       transaction.loanStatus = 'open';
     }
+    if (transaction.type === 'loan' && transaction.loanStatus === 'settled' && !transaction.loanSettlementAccountId) {
+      transaction.loanSettlementAccountId = transaction.accountId ?? null;
+    }
 
     if (transaction.accountId) {
       const account = await this.getAccount(transaction.accountId);
@@ -185,13 +204,16 @@ export class LocalStorage implements IStorage {
     if (transaction.accountId) {
       const account = await this.getAccount(transaction.accountId);
       if (account) {
-        const amount = Number(transaction.amount);
-        let delta = 0;
-        if (transaction.type === 'income') delta = amount;
-        if (transaction.type === 'expense') delta = -amount;
-        if (transaction.type === 'loan') {
-          delta = transaction.loanType === 'borrow' ? amount : -amount;
-        }
+        const delta = this.getBalanceDelta(transaction as Transaction);
+        const newBalance = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+      }
+    }
+
+    if (transaction.loanSettlementAccountId) {
+      const account = await this.getAccount(transaction.loanSettlementAccountId);
+      if (account) {
+        const delta = this.getSettlementDelta(transaction as Transaction);
         const newBalance = Number(account.balance || 0) + delta;
         await this.updateAccount(account.id!, { balance: newBalance.toString() });
       }
@@ -226,6 +248,9 @@ export class LocalStorage implements IStorage {
     if (merged.type === 'loan' && !merged.loanStatus) {
       merged.loanStatus = 'open';
     }
+    if (merged.type === 'loan' && merged.loanStatus === 'settled' && !merged.loanSettlementAccountId) {
+      merged.loanSettlementAccountId = merged.accountId ?? null;
+    }
 
     if (merged.accountId) {
       const account = await this.getAccount(merged.accountId);
@@ -241,15 +266,10 @@ export class LocalStorage implements IStorage {
       }
     }
 
-    const computeDelta = (tx: Transaction) => {
-      const amount = Number(tx.amount);
-      if (tx.type === 'income') return amount;
-      if (tx.type === 'loan') return tx.loanType === 'borrow' ? amount : -amount;
-      return -amount;
-    };
-
-    const oldDelta = computeDelta(existing);
-    const newDelta = computeDelta(merged);
+    const oldDelta = this.getBalanceDelta(existing);
+    const newDelta = this.getBalanceDelta(merged);
+    const oldSettlementDelta = this.getSettlementDelta(existing);
+    const newSettlementDelta = this.getSettlementDelta(merged);
 
     if (existing.accountId && existing.accountId === merged.accountId) {
       const account = await this.getAccount(existing.accountId);
@@ -275,6 +295,30 @@ export class LocalStorage implements IStorage {
       }
     }
 
+    if (existing.loanSettlementAccountId && existing.loanSettlementAccountId === merged.loanSettlementAccountId) {
+      const account = await this.getAccount(existing.loanSettlementAccountId);
+      if (account) {
+        const delta = newSettlementDelta - oldSettlementDelta;
+        const next = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: next.toString() });
+      }
+    } else {
+      if (existing.loanSettlementAccountId) {
+        const oldAccount = await this.getAccount(existing.loanSettlementAccountId);
+        if (oldAccount) {
+          const next = Number(oldAccount.balance || 0) - oldSettlementDelta;
+          await this.updateAccount(oldAccount.id!, { balance: next.toString() });
+        }
+      }
+      if (merged.loanSettlementAccountId) {
+        const newAccount = await this.getAccount(merged.loanSettlementAccountId);
+        if (newAccount) {
+          const next = Number(newAccount.balance || 0) + newSettlementDelta;
+          await this.updateAccount(newAccount.id!, { balance: next.toString() });
+        }
+      }
+    }
+
     await db.transactions.update(id, merged);
     const updated = await db.transactions.get(id);
     if (!updated) {
@@ -288,13 +332,16 @@ export class LocalStorage implements IStorage {
     if (existing?.accountId) {
       const account = await this.getAccount(existing.accountId);
       if (account) {
-        const amount = Number(existing.amount);
-        let delta = 0;
-        if ((existing.type || 'expense') === 'income') delta = -amount;
-        if ((existing.type || 'expense') === 'expense') delta = amount;
-        if (existing.type === 'loan') {
-          delta = existing.loanType === 'borrow' ? -amount : amount;
-        }
+        const delta = -this.getBalanceDelta(existing);
+        const newBalance = Number(account.balance || 0) + delta;
+        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+      }
+    }
+
+    if (existing?.loanSettlementAccountId) {
+      const account = await this.getAccount(existing.loanSettlementAccountId);
+      if (account) {
+        const delta = -this.getSettlementDelta(existing);
         const newBalance = Number(account.balance || 0) + delta;
         await this.updateAccount(account.id!, { balance: newBalance.toString() });
       }
@@ -334,6 +381,10 @@ export class LocalStorage implements IStorage {
   }
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void> {
+    const hasAccounts = Array.isArray(data.accounts) && data.accounts.length > 0;
+    const oldAccountIdToName = new Map<number, string>();
+    const nameToAccountId = new Map<string, number>();
+
     if (data.settings) {
       await this.updateSettings({
         monthlyIncome: data.settings.monthlyIncome,
@@ -369,6 +420,9 @@ export class LocalStorage implements IStorage {
 
     if (data.accounts && data.accounts.length > 0) {
       for (const acc of data.accounts) {
+        if (acc.id !== undefined) {
+          oldAccountIdToName.set(acc.id, acc.name);
+        }
         const existing = await db.accounts.where('name').equals(acc.name).first();
         if (existing) {
           await this.updateAccount(existing.id!, {
@@ -386,6 +440,29 @@ export class LocalStorage implements IStorage {
     }
 
     if (data.transactions && data.transactions.length > 0) {
+      if (!hasAccounts) {
+        const inferredAccounts = new Set<string>();
+        for (const tx of data.transactions) {
+          if (tx.paymentMethod) inferredAccounts.add(tx.paymentMethod);
+        }
+        if (inferredAccounts.size === 0) {
+          inferredAccounts.add('Cash');
+        }
+        for (const name of inferredAccounts) {
+          const existing = await db.accounts.where('name').equals(name).first();
+          if (!existing) {
+            await this.createAccount({ name, type: name === 'Cash' ? 'Cash' : 'Bank', balance: '0' });
+          }
+        }
+      }
+
+      const accounts = await db.accounts.toArray();
+      for (const account of accounts) {
+        if (account.id !== undefined) {
+          nameToAccountId.set(account.name, account.id);
+        }
+      }
+
       for (const tx of data.transactions) {
         let catId = tx.categoryId;
         if (tx.categoryName) {
@@ -394,25 +471,61 @@ export class LocalStorage implements IStorage {
         }
 
         let accountId = tx.accountId ?? null;
+        if (accountId && oldAccountIdToName.has(accountId)) {
+          const name = oldAccountIdToName.get(accountId)!;
+          accountId = nameToAccountId.get(name) ?? null;
+        }
         if (!accountId && tx.paymentMethod) {
-          const account = await db.accounts.where('name').equals(tx.paymentMethod).first();
-          if (account) accountId = account.id!;
+          accountId = nameToAccountId.get(tx.paymentMethod) ?? null;
         }
 
-        await this.createTransaction({
+        let settlementAccountId = tx.loanSettlementAccountId ?? null;
+        if (settlementAccountId && oldAccountIdToName.has(settlementAccountId)) {
+          const name = oldAccountIdToName.get(settlementAccountId)!;
+          settlementAccountId = nameToAccountId.get(name) ?? null;
+        }
+        if (!settlementAccountId && tx.loanStatus === 'settled') {
+          settlementAccountId = accountId ?? null;
+        }
+
+        await db.transactions.add({
           amount: tx.amount,
           categoryId: catId ?? null,
           categoryName: tx.categoryName ?? null,
           date: new Date(tx.date),
-          paymentMethod: tx.paymentMethod,
+          paymentMethod: tx.paymentMethod || 'Cash',
           accountId,
+          loanSettlementAccountId: settlementAccountId,
           counterparty: tx.counterparty ?? null,
           note: tx.note ?? null,
-          isRecurring: tx.isRecurring,
+          isRecurring: tx.isRecurring ?? false,
           type: tx.type ?? 'expense',
-          loanType: tx.loanType ?? null,
+          loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
           loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
-        });
+        } as Transaction);
+      }
+    }
+
+    if (!hasAccounts && data.transactions && data.transactions.length > 0) {
+      const transactions = await db.transactions.toArray();
+      const accounts = await db.accounts.toArray();
+      const balanceMap = new Map<number, number>();
+      for (const account of accounts) {
+        if (account.id !== undefined) {
+          balanceMap.set(account.id, Number(account.balance || 0));
+        }
+      }
+      for (const tx of transactions) {
+        if (!tx.accountId) continue;
+        const current = balanceMap.get(tx.accountId) ?? 0;
+        balanceMap.set(tx.accountId, current + this.getBalanceDelta(tx));
+        if (tx.loanSettlementAccountId) {
+          const settleCurrent = balanceMap.get(tx.loanSettlementAccountId) ?? 0;
+          balanceMap.set(tx.loanSettlementAccountId, settleCurrent + this.getSettlementDelta(tx));
+        }
+      }
+      for (const [id, balance] of balanceMap.entries()) {
+        await this.updateAccount(id, { balance: balance.toString() });
       }
     }
   }

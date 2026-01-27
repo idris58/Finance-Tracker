@@ -121,6 +121,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Transaction recorded", description: "Your expense has been logged." });
     },
     onError: (err) => {
@@ -160,6 +161,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Transaction deleted", description: "Record removed successfully." });
     },
   });
