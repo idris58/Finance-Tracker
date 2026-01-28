@@ -45,7 +45,9 @@ export default function StatisticsPage() {
       const key = tx.categoryName || "Uncategorized";
       totals[key] = (totals[key] || 0) + Number(tx.amount);
     });
-    return Object.entries(totals).map(([name, value]) => ({ name, value }));
+    return Object.entries(totals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [transactions, activeType]);
 
   const yearSummary = useMemo(() => {
