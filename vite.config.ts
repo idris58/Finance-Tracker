@@ -12,8 +12,6 @@ export default defineConfig({
         "favicon.png",
         "icon-192.png",
         "icon-512.png",
-        "icon-192-maskable.png",
-        "icon-512-maskable.png",
         "screenshot-wide.jpg",
         "screenshot-narrow.jpg",
       ],
@@ -39,18 +37,6 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
-          },
-          {
-            src: "/icon-192-maskable.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "maskable",
-          },
-          {
-            src: "/icon-512-maskable.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
           },
         ],
         screenshots: [
