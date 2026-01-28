@@ -4,6 +4,7 @@ import { BarChart3, CalendarIcon, PieChart as PieIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
+import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -202,31 +203,41 @@ export default function StatisticsPage() {
         {categoryTotals.length === 0 ? (
           <p className="text-sm text-muted-foreground">No data for this month.</p>
         ) : (
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartMode === "bar" ? (
-                <BarChart data={categoryTotals} barSize={32}>
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value: number) => `${currency}${value}`} />
-                  <Bar dataKey="value" radius={[12, 12, 0, 0]}>
-                    {categoryTotals.map((entry, index) => (
-                      <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              ) : (
-                <PieChart>
-                  <Tooltip formatter={(value: number) => `${currency}${value}`} />
-                  <Pie data={categoryTotals} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
-                    {categoryTotals.map((entry, index) => (
-                      <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              )}
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartMode === "bar" ? (
+                  <BarChart data={categoryTotals} barSize={32}>
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                    <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                      {categoryTotals.map((entry, index) => (
+                        <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <PieChart>
+                    <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                    <Pie data={categoryTotals} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
+                      {categoryTotals.map((entry, index) => (
+                        <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+              {categoryTotals.map((item, index) => (
+                <div key={item.name} className="flex items-center gap-2">
+                  <span className="h-2.5 w-7 rounded-full" style={{ backgroundColor: palette[index % palette.length] }} />
+                  <span className="text-xs">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -234,7 +245,13 @@ export default function StatisticsPage() {
         {categoryTotals.map((item, index) => (
           <div key={item.name} className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4">
             <div className="flex items-center gap-3">
-              <span className="h-9 w-9 rounded-xl" style={{ backgroundColor: palette[index % palette.length] }} />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background">
+                {(() => {
+                  const entry = getCategoryIcon(item.name);
+                  const Icon = entry.icon;
+                  return <Icon className={cn("h-5 w-5", entry.className)} />;
+                })()}
+              </div>
               <span className="font-medium">{item.name}</span>
             </div>
             <span className="font-semibold">{currency}{item.value.toLocaleString()}</span>
