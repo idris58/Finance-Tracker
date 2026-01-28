@@ -93,3 +93,13 @@
   }
 }
 
+/* Remove focus outlines/tap highlights on Recharts shapes for mobile */
+.recharts-wrapper,
+.recharts-wrapper * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.recharts-wrapper *:focus {
+  outline: none;
+}
+
