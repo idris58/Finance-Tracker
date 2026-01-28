@@ -27,14 +27,27 @@ export default function SettingsPage() {
   const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
-    const handler = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as any);
-      setIsInstallable(true);
+    const updateFromWindow = () => {
+      const deferred = (window as any).deferredInstallPrompt;
+      if (deferred) {
+        setInstallPrompt(deferred);
+        setIsInstallable(true);
+      }
     };
 
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    const handler = () => updateFromWindow();
+    const installedHandler = () => {
+      setInstallPrompt(null);
+      setIsInstallable(false);
+    };
+
+    updateFromWindow();
+    window.addEventListener("app-installable", handler);
+    window.addEventListener("app-installed", installedHandler);
+    return () => {
+      window.removeEventListener("app-installable", handler);
+      window.removeEventListener("app-installed", installedHandler);
+    };
   }, []);
 
   const handleInstall = async () => {
