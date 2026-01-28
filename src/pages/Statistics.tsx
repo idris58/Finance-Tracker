@@ -210,7 +210,7 @@ export default function StatisticsPage() {
                   <BarChart data={categoryTotals} barSize={32}>
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                  <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
                     <Bar dataKey="value" radius={[12, 12, 0, 0]}>
                       {categoryTotals.map((entry, index) => (
                         <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
@@ -219,8 +219,15 @@ export default function StatisticsPage() {
                   </BarChart>
                 ) : (
                   <PieChart>
-                    <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
-                    <Pie data={categoryTotals} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
+                  <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                    <Pie
+                      data={categoryTotals}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={50}
+                      outerRadius={90}
+                      activeShape={false}
+                    >
                       {categoryTotals.map((entry, index) => (
                         <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
                       ))}
