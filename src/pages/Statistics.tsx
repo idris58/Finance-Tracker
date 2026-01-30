@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { BarChart3, CalendarIcon, PieChart as PieIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
@@ -201,7 +201,15 @@ export default function StatisticsPage() {
 
       <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
         {categoryTotals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No data for this month.</p>
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
+            <p className="text-sm text-muted-foreground">No data for this month.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Try another month or add a transaction to see insights.
+            </p>
+            <Button onClick={() => setMonthDate(subMonths(monthDate, 1))} className="mt-4 rounded-full px-6">
+              View last month
+            </Button>
+          </div>
         ) : (
           <>
             <div className="h-64 w-full">

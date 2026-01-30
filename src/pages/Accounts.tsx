@@ -119,27 +119,39 @@ export default function AccountsPage() {
       </div>
 
       <div className="space-y-3">
-        {(accounts || []).map((account) => {
-          const TypeIcon = accountTypes.find((type) => type.value === account.type)?.icon || CreditCard;
-          return (
-            <button
-              key={account.id}
-              onClick={() => handleEdit({ id: account.id, name: account.name, type: account.type, balance: account.balance })}
-              className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary")}> 
-                  <TypeIcon className="h-5 w-5" />
+        {(accounts || []).length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
+            <p className="text-sm text-muted-foreground">No accounts yet.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Add Cash, Bank, or Mobile Wallet to track balances.
+            </p>
+            <Button onClick={() => setOpen(true)} className="mt-4 rounded-full px-6">
+              Add account
+            </Button>
+          </div>
+        ) : (
+          (accounts || []).map((account) => {
+            const TypeIcon = accountTypes.find((type) => type.value === account.type)?.icon || CreditCard;
+            return (
+              <button
+                key={account.id}
+                onClick={() => handleEdit({ id: account.id, name: account.name, type: account.type, balance: account.balance })}
+                className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary")}>
+                    <TypeIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{account.name}</p>
+                    <p className="text-xs text-muted-foreground">{account.type}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">{account.name}</p>
-                  <p className="text-xs text-muted-foreground">{account.type}</p>
-                </div>
-              </div>
-              <span className="font-semibold">{currency}{Number(account.balance || 0).toLocaleString()}</span>
-            </button>
-          );
-        })}
+                <span className="font-semibold">{currency}{Number(account.balance || 0).toLocaleString()}</span>
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );

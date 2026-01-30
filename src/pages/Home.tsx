@@ -29,7 +29,7 @@ export default function HomePage() {
   const { data: settings } = useSettings();
   const { data: accounts } = useAccounts();
   const { data: transactions, isLoading } = useTransactions({ month: monthKey });
-  const { openEdit } = useTransactionEditor();
+  const { openEdit, openNew } = useTransactionEditor();
 
   const currency = settings?.currencySymbol || "$";
   const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
@@ -169,8 +169,14 @@ export default function HomePage() {
       <div className="space-y-4">
         {isLoading && <p className="text-sm text-muted-foreground">Loading transactions...</p>}
         {!isLoading && filteredTransactions.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center text-sm text-muted-foreground">
-            No transactions yet for this month.
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
+            <p className="text-sm text-muted-foreground">No transactions yet for this month.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Add your first {activeType === "loan" ? "loan" : activeType} to get started.
+            </p>
+            <Button onClick={openNew} className="mt-4 rounded-full px-6">
+              Add transaction
+            </Button>
           </div>
         )}
 
