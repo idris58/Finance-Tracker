@@ -11,9 +11,7 @@ export interface Settings {
 export interface Category {
   id?: number;
   name: string;
-  monthlyLimit: string;
   color: string;
-  isFixed: boolean;
   type: "expense" | "income" | "loan";
 }
 
@@ -28,7 +26,6 @@ export interface Transaction {
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
-  isRecurring: boolean;
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
   loanStatus?: "open" | "settled" | null;
@@ -194,47 +191,47 @@ export async function initializeDatabase() {
   const categoriesCount = await db.categories.count();
   if (categoriesCount === 0) {
     const defaultCategories: Omit<Category, 'id'>[] = [
-      { name: 'Food', color: '#ff8a65', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Transport', color: '#64b5f6', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Shopping', color: '#ba68c8', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Bills', color: '#90a4ae', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Health', color: '#ef5350', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Grocery', color: '#81c784', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Education', color: '#5c6bc0', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Rentals', color: '#ffb74d', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Medical', color: '#ef5350', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Other', color: '#9e9e9e', monthlyLimit: '0', isFixed: false, type: 'expense' },
-      { name: 'Salary', color: '#4db6ac', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Business', color: '#9575cd', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Investment', color: '#7986cb', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Interest', color: '#ffd54f', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Extra', color: '#4fc3f7', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Other Income', color: '#90a4ae', monthlyLimit: '0', isFixed: false, type: 'income' },
-      { name: 'Borrow', color: '#f06292', monthlyLimit: '0', isFixed: false, type: 'loan' },
-      { name: 'Lend', color: '#4db6ac', monthlyLimit: '0', isFixed: false, type: 'loan' },
+      { name: 'Food', color: '#ff8a65', type: 'expense' },
+      { name: 'Transport', color: '#64b5f6', type: 'expense' },
+      { name: 'Shopping', color: '#ba68c8', type: 'expense' },
+      { name: 'Bills', color: '#90a4ae', type: 'expense' },
+      { name: 'Health', color: '#ef5350', type: 'expense' },
+      { name: 'Grocery', color: '#81c784', type: 'expense' },
+      { name: 'Education', color: '#5c6bc0', type: 'expense' },
+      { name: 'Rentals', color: '#ffb74d', type: 'expense' },
+      { name: 'Medical', color: '#ef5350', type: 'expense' },
+      { name: 'Other', color: '#9e9e9e', type: 'expense' },
+      { name: 'Salary', color: '#4db6ac', type: 'income' },
+      { name: 'Business', color: '#9575cd', type: 'income' },
+      { name: 'Investment', color: '#7986cb', type: 'income' },
+      { name: 'Interest', color: '#ffd54f', type: 'income' },
+      { name: 'Extra', color: '#4fc3f7', type: 'income' },
+      { name: 'Other Income', color: '#90a4ae', type: 'income' },
+      { name: 'Borrow', color: '#f06292', type: 'loan' },
+      { name: 'Lend', color: '#4db6ac', type: 'loan' },
     ];
 
     await db.categories.bulkAdd(defaultCategories);
   } else {
     const required = [
-      { name: 'Food', color: '#ff8a65', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Transport', color: '#64b5f6', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Shopping', color: '#ba68c8', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Bills', color: '#90a4ae', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Health', color: '#ef5350', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Grocery', color: '#81c784', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Education', color: '#5c6bc0', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Rentals', color: '#ffb74d', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Medical', color: '#ef5350', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Other', color: '#9e9e9e', monthlyLimit: '0', isFixed: false, type: 'expense' as const },
-      { name: 'Salary', color: '#4db6ac', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Business', color: '#9575cd', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Investment', color: '#7986cb', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Interest', color: '#ffd54f', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Extra', color: '#4fc3f7', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Other Income', color: '#90a4ae', monthlyLimit: '0', isFixed: false, type: 'income' as const },
-      { name: 'Borrow', color: '#f06292', monthlyLimit: '0', isFixed: false, type: 'loan' as const },
-      { name: 'Lend', color: '#4db6ac', monthlyLimit: '0', isFixed: false, type: 'loan' as const },
+      { name: 'Food', color: '#ff8a65', type: 'expense' as const },
+      { name: 'Transport', color: '#64b5f6', type: 'expense' as const },
+      { name: 'Shopping', color: '#ba68c8', type: 'expense' as const },
+      { name: 'Bills', color: '#90a4ae', type: 'expense' as const },
+      { name: 'Health', color: '#ef5350', type: 'expense' as const },
+      { name: 'Grocery', color: '#81c784', type: 'expense' as const },
+      { name: 'Education', color: '#5c6bc0', type: 'expense' as const },
+      { name: 'Rentals', color: '#ffb74d', type: 'expense' as const },
+      { name: 'Medical', color: '#ef5350', type: 'expense' as const },
+      { name: 'Other', color: '#9e9e9e', type: 'expense' as const },
+      { name: 'Salary', color: '#4db6ac', type: 'income' as const },
+      { name: 'Business', color: '#9575cd', type: 'income' as const },
+      { name: 'Investment', color: '#7986cb', type: 'income' as const },
+      { name: 'Interest', color: '#ffd54f', type: 'income' as const },
+      { name: 'Extra', color: '#4fc3f7', type: 'income' as const },
+      { name: 'Other Income', color: '#90a4ae', type: 'income' as const },
+      { name: 'Borrow', color: '#f06292', type: 'loan' as const },
+      { name: 'Lend', color: '#4db6ac', type: 'loan' as const },
     ];
 
     for (const cat of required) {

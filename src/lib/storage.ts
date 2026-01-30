@@ -417,17 +417,13 @@ export class LocalStorage implements IStorage {
         const existing = await db.categories.where('name').equals(cat.name).first();
         if (existing) {
           await db.categories.update(existing.id!, {
-            monthlyLimit: cat.monthlyLimit,
             color: cat.color,
-            isFixed: cat.isFixed,
             type: cat.type ?? 'expense',
           });
         } else {
           await db.categories.add({
             name: cat.name,
-            monthlyLimit: cat.monthlyLimit,
             color: cat.color,
-            isFixed: cat.isFixed,
             type: cat.type ?? 'expense',
           } as Category);
         }
@@ -514,7 +510,6 @@ export class LocalStorage implements IStorage {
           loanSettlementAccountId: settlementAccountId,
           counterparty: tx.counterparty ?? null,
           note: tx.note ?? null,
-          isRecurring: tx.isRecurring ?? false,
           type: tx.type ?? 'expense',
           loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
           loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
