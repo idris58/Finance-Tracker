@@ -21,6 +21,8 @@ export interface IStorage {
   createAccount(account: Omit<Account, 'id'>): Promise<Account>;
   updateAccount(id: number, updates: Partial<Omit<Account, 'id'>>): Promise<Account>;
   deleteAccount(id: number): Promise<void>;
+  transferBetweenAccounts(params: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }): Promise<void>;
+  getTransfers(limit?: number): Promise<{ id?: number; fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }[]>;
 
   // Bulk (for Import)
   importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void>;
@@ -351,6 +353,51 @@ export class LocalStorage implements IStorage {
 
   async deleteAccount(id: number): Promise<void> {
     await db.accounts.delete(id);
+  }
+
+  async transferBetweenAccounts(params: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }): Promise<void> {
+    const { fromAccountId, toAccountId, amount, note, date } = params;
+    if (fromAccountId === toAccountId) {
+      throw new Error('Transfer accounts must be different');
+    }
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      throw new Error('Transfer amount must be greater than 0');
+    }
+
+    const from = await this.getAccount(fromAccountId);
+    const to = await this.getAccount(toAccountId);
+    if (!from || !to) {
+      throw new Error('Account not found');
+    }
+
+    if (Number(from.balance || 0) < parsedAmount) {
+      throw new Error('Insufficient balance in the selected account.');
+    }
+
+    const fromBalance = Number(from.balance || 0) - parsedAmount;
+    const toBalance = Number(to.balance || 0) + parsedAmount;
+
+    await this.updateAccount(fromAccountId, { balance: fromBalance.toString() });
+    await this.updateAccount(toAccountId, { balance: toBalance.toString() });
+
+    await db.transfers.add({
+      fromAccountId,
+      toAccountId,
+      amount: parsedAmount.toString(),
+      note: note ?? null,
+      date: date ?? new Date(),
+    });
+  }
+
+  async getTransfers(limit?: number): Promise<{ id?: number; fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }[]> {
+    const items = await db.transfers.orderBy('date').reverse().toArray();
+    const mapped = items.map((item) => ({
+      ...item,
+      date: item.date instanceof Date ? item.date : new Date(item.date),
+    }));
+    if (limit) return mapped.slice(0, limit);
+    return mapped;
   }
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void> {

@@ -41,11 +41,21 @@ export interface Account {
   balance: string;
 }
 
+export interface Transfer {
+  id?: number;
+  fromAccountId: number;
+  toAccountId: number;
+  amount: string;
+  note?: string | null;
+  date: Date;
+}
+
 class FinanceDatabase extends Dexie {
   settings!: Table<Settings, number>;
   categories!: Table<Category, number>;
   transactions!: Table<Transaction, number>;
   accounts!: Table<Account, number>;
+  transfers!: Table<Transfer, number>;
 
   constructor() {
     super('FinanceTracker');
@@ -148,6 +158,15 @@ class FinanceDatabase extends Dexie {
           await tx.table('transactions').update(txRow.id, { loanSettlementAccountId: settlementAccountId });
         }
       }
+    });
+
+    // Migration: Add transfers table
+    this.version(7).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
     });
   }
 }

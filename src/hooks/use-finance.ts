@@ -9,6 +9,7 @@ import type {
   Transaction,
   Settings,
   Account,
+  Transfer,
   DashboardStatsResponse
 } from "@shared/schema";
 
@@ -131,6 +132,15 @@ export function useAccounts() {
   });
 }
 
+export function useTransfers(limit?: number) {
+  return useQuery({
+    queryKey: ['transfers', limit],
+    queryFn: async (): Promise<Transfer[]> => {
+      return await storage.getTransfers(limit);
+    },
+  });
+}
+
 export function useCreateAccount() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -175,6 +185,26 @@ export function useDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account deleted", description: "Account removed successfully." });
+    },
+  });
+}
+
+export function useTransferBetweenAccounts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }) => {
+      await storage.transferBetweenAccounts(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      toast({ title: "Transfer complete", description: "Balances updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Transfer failed", description: error?.message || "Could not complete transfer.", variant: "destructive" });
     },
   });
 }

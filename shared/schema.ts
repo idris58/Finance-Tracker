@@ -91,6 +91,15 @@ export interface Account {
 
 export type InsertAccount = z.infer<typeof insertAccountSchema>;
 
+export interface Transfer {
+  id?: number;
+  fromAccountId: number;
+  toAccountId: number;
+  amount: string;
+  note?: string | null;
+  date: Date;
+}
+
 // === API REQUEST TYPES ===
 export type UpdateSettingsRequest = Partial<InsertSettings>;
 export type CreateTransactionRequest = InsertTransaction;

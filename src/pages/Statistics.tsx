@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { format, subMonths } from "date-fns";
-import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, PieChart as PieIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
@@ -147,8 +147,9 @@ export default function StatisticsPage() {
               <p className="text-sm text-muted-foreground">Total balance</p>
               <div className="mt-2 flex items-center gap-2">
                 <h2 className="text-3xl font-semibold">{currency}{totalBalance.toLocaleString()}</h2>
-                <span className="text-muted-foreground">?</span>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">Tap for details</p>
             </button>
           </SheetTrigger>
           <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
