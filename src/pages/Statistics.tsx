@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
-import { format } from "date-fns";
-import { BarChart3, CalendarIcon, PieChart as PieIcon } from "lucide-react";
+import { format, subMonths } from "date-fns";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
@@ -86,6 +86,58 @@ export default function StatisticsPage() {
     return { currentYear, totalExpense, totalIncome, table };
   }, [allTransactions]);
 
+  const monthlyComparison = useMemo(() => {
+    const currentKey = format(monthDate, "yyyy-MM");
+    const prevKey = format(subMonths(monthDate, 1), "yyyy-MM");
+    let currentIncome = 0;
+    let currentExpense = 0;
+    let prevIncome = 0;
+    let prevExpense = 0;
+
+    (allTransactions || []).forEach((tx) => {
+      const txMonth = format(new Date(tx.date), "yyyy-MM");
+      const type = tx.type || "expense";
+      if (txMonth === currentKey) {
+        if (type === "income") currentIncome += Number(tx.amount);
+        if (type === "expense") currentExpense += Number(tx.amount);
+      }
+      if (txMonth === prevKey) {
+        if (type === "income") prevIncome += Number(tx.amount);
+        if (type === "expense") prevExpense += Number(tx.amount);
+      }
+    });
+
+    return {
+      currentKey,
+      prevKey,
+      income: { current: currentIncome, prev: prevIncome },
+      expense: { current: currentExpense, prev: prevExpense },
+    };
+  }, [allTransactions, monthDate]);
+
+  const renderChange = (current: number, prev: number, invertColors = false) => {
+    if (prev === 0) {
+      return (
+        <span className="text-xs text-muted-foreground">
+          {current === 0 ? "No change" : "New"}
+        </span>
+      );
+    }
+    const delta = current - prev;
+    const percent = Math.abs((delta / prev) * 100);
+    const isUp = delta >= 0;
+    const color = invertColors
+      ? (isUp ? "text-rose-500" : "text-emerald-500")
+      : (isUp ? "text-emerald-500" : "text-rose-500");
+
+    return (
+      <span className={cn("flex items-center gap-1 text-xs font-semibold", color)}>
+        {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {Math.abs(percent).toFixed(0)}%
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6">
@@ -95,8 +147,9 @@ export default function StatisticsPage() {
               <p className="text-sm text-muted-foreground">Total balance</p>
               <div className="mt-2 flex items-center gap-2">
                 <h2 className="text-3xl font-semibold">{currency}{totalBalance.toLocaleString()}</h2>
-                <span className="text-muted-foreground">?</span>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">Tap for details</p>
             </button>
           </SheetTrigger>
           <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
@@ -173,6 +226,29 @@ export default function StatisticsPage() {
         ))}
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+          <p className="text-xs text-muted-foreground">Income (this month)</p>
+          <p className="mt-2 text-lg font-semibold">
+            {currency}{monthlyComparison.income.current.toLocaleString()}
+          </p>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Last month: {currency}{monthlyComparison.income.prev.toLocaleString()}</span>
+            {renderChange(monthlyComparison.income.current, monthlyComparison.income.prev)}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+          <p className="text-xs text-muted-foreground">Expense (this month)</p>
+          <p className="mt-2 text-lg font-semibold">
+            {currency}{monthlyComparison.expense.current.toLocaleString()}
+          </p>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Last month: {currency}{monthlyComparison.expense.prev.toLocaleString()}</span>
+            {renderChange(monthlyComparison.expense.current, monthlyComparison.expense.prev, true)}
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <Popover>
           <PopoverTrigger asChild>
@@ -201,7 +277,15 @@ export default function StatisticsPage() {
 
       <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
         {categoryTotals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No data for this month.</p>
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
+            <p className="text-sm text-muted-foreground">No data for this month.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Try another month or add a transaction to see insights.
+            </p>
+            <Button onClick={() => setMonthDate(subMonths(monthDate, 1))} className="mt-4 rounded-full px-6">
+              View last month
+            </Button>
+          </div>
         ) : (
           <>
             <div className="h-64 w-full">

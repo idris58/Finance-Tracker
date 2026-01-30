@@ -1,10 +1,10 @@
 ﻿import { Link, useLocation } from "wouter";
-import { Home, BarChart3, WalletCards, Settings, Plus } from "lucide-react";
+import { Home, BarChart3, WalletCards, Settings, Plus, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TransactionModal } from "./TransactionModal";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 
-const navItems = [
+const baseNavItems = [
   { icon: Home, label: "Home", href: "/" },
   { icon: BarChart3, label: "Statistics", href: "/statistics" },
   { icon: WalletCards, label: "Accounts", href: "/accounts" },
@@ -14,6 +14,15 @@ const navItems = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { open, setOpen, openNew, transaction } = useTransactionEditor();
+  const isTransactionsRoute = location === "/transactions";
+  const navItems = isTransactionsRoute
+    ? [
+        baseNavItems[0],
+        { icon: List, label: "Transactions", href: "/transactions" },
+        baseNavItems[2],
+        baseNavItems[3],
+      ]
+    : baseNavItems;
 
   return (
     <div className="min-h-screen bg-background text-foreground">

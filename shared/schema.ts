@@ -13,9 +13,7 @@ export const loanStatusSchema = z.enum(["open", "settled"]);
 
 export const insertCategorySchema = z.object({
   name: z.string().min(1),
-  monthlyLimit: z.string().default("0"),
   color: z.string().default("#39ff14"),
-  isFixed: z.boolean().default(false),
   type: transactionTypeSchema.default("expense"),
 });
 
@@ -29,7 +27,7 @@ export const insertTransactionSchema = z.object({
   loanSettlementAccountId: z.number().optional().nullable(),
   counterparty: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
-  isRecurring: z.boolean().default(false),
+  tags: z.array(z.string()).optional().default([]),
   type: transactionTypeSchema.default("expense"),
   loanType: loanTypeSchema.optional().nullable(),
   loanStatus: loanStatusSchema.optional().nullable(),
@@ -55,9 +53,7 @@ export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export interface Category {
   id?: number;
   name: string;
-  monthlyLimit: string;
   color: string;
-  isFixed: boolean;
   type: "expense" | "income" | "loan";
 }
 
@@ -74,7 +70,7 @@ export interface Transaction {
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
-  isRecurring: boolean;
+  tags?: string[];
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
   loanStatus?: "open" | "settled" | null;
@@ -90,6 +86,15 @@ export interface Account {
 }
 
 export type InsertAccount = z.infer<typeof insertAccountSchema>;
+
+export interface Transfer {
+  id?: number;
+  fromAccountId: number;
+  toAccountId: number;
+  amount: string;
+  note?: string | null;
+  date: Date;
+}
 
 // === API REQUEST TYPES ===
 export type UpdateSettingsRequest = Partial<InsertSettings>;

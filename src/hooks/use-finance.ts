@@ -9,6 +9,7 @@ import type {
   Transaction,
   Settings,
   Account,
+  Transfer,
   DashboardStatsResponse
 } from "@shared/schema";
 
@@ -131,6 +132,15 @@ export function useAccounts() {
   });
 }
 
+export function useTransfers(limit?: number) {
+  return useQuery({
+    queryKey: ['transfers', limit],
+    queryFn: async (): Promise<Transfer[]> => {
+      return await storage.getTransfers(limit);
+    },
+  });
+}
+
 export function useCreateAccount() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -179,6 +189,26 @@ export function useDeleteAccount() {
   });
 }
 
+export function useTransferBetweenAccounts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }) => {
+      await storage.transferBetweenAccounts(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      toast({ title: "Transfer complete", description: "Balances updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Transfer failed", description: error?.message || "Could not complete transfer.", variant: "destructive" });
+    },
+  });
+}
+
 // --- Stats ---
 export function useStats() {
   return useQuery({
@@ -216,6 +246,132 @@ export function useStats() {
 }
 
 // --- Data Management ---
+
+const normalizeString = (value: unknown) => {
+  if (value === undefined || value === null) return null;
+  return String(value);
+};
+
+const validateImportData = (data: any) => {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== 'object') {
+    return { errors: ['Invalid file format.'], clean: null };
+  }
+
+  if (!data.settings || typeof data.settings !== 'object') {
+    errors.push('Missing settings object.');
+  }
+
+  const settings = data.settings || {};
+  if (settings.currencySymbol && typeof settings.currencySymbol !== 'string') {
+    errors.push('Settings.currencySymbol must be a string.');
+  }
+  if (settings.isSetupComplete !== undefined && typeof settings.isSetupComplete !== 'boolean') {
+    errors.push('Settings.isSetupComplete must be true/false.');
+  }
+
+  if (!Array.isArray(data.categories)) {
+    errors.push('Categories must be an array.');
+  }
+
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const cleanCategories = categories.map((cat: any, index: number) => {
+    if (!cat || typeof cat !== 'object') {
+      errors.push(`Category #${index + 1} is invalid.`);
+      return null;
+    }
+    if (!cat.name || typeof cat.name !== 'string') {
+      errors.push(`Category #${index + 1} is missing a name.`);
+    }
+    const type = cat.type ?? 'expense';
+    if (!['expense', 'income', 'loan'].includes(type)) {
+      errors.push(`Category "${cat.name || index + 1}" has invalid type.`);
+    }
+    return {
+      name: cat.name,
+      color: typeof cat.color === 'string' ? cat.color : '#9e9e9e',
+      type,
+    };
+  }).filter(Boolean);
+
+  if (!Array.isArray(data.transactions)) {
+    errors.push('Transactions must be an array.');
+  }
+
+  const transactions = Array.isArray(data.transactions) ? data.transactions : [];
+  const cleanTransactions = transactions.map((tx: any, index: number) => {
+    if (!tx || typeof tx !== 'object') {
+      errors.push(`Transaction #${index + 1} is invalid.`);
+      return null;
+    }
+    if (tx.amount === undefined || tx.amount === null || isNaN(Number(tx.amount))) {
+      errors.push(`Transaction #${index + 1} has invalid amount.`);
+    }
+    if (!tx.date || isNaN(new Date(tx.date).getTime())) {
+      errors.push(`Transaction #${index + 1} has invalid date.`);
+    }
+    if (tx.type && !['expense', 'income', 'loan'].includes(tx.type)) {
+      errors.push(`Transaction #${index + 1} has invalid type.`);
+    }
+    if (tx.loanType && !['borrow', 'lend'].includes(tx.loanType)) {
+      errors.push(`Transaction #${index + 1} has invalid loanType.`);
+    }
+    if (tx.loanStatus && !['open', 'settled'].includes(tx.loanStatus)) {
+      errors.push(`Transaction #${index + 1} has invalid loanStatus.`);
+    }
+      return {
+        amount: normalizeString(tx.amount) ?? '0',
+        categoryId: typeof tx.categoryId === 'number' ? tx.categoryId : null,
+        categoryName: tx.categoryName ?? null,
+        date: tx.date,
+        paymentMethod: tx.paymentMethod ?? '',
+        accountId: typeof tx.accountId === 'number' ? tx.accountId : null,
+        loanSettlementAccountId: typeof tx.loanSettlementAccountId === 'number' ? tx.loanSettlementAccountId : null,
+        counterparty: tx.counterparty ?? null,
+        note: tx.note ?? null,
+        tags: Array.isArray(tx.tags) ? tx.tags.map((tag: any) => String(tag)).filter((tag: string) => tag.trim().length > 0) : [],
+        type: tx.type ?? 'expense',
+        loanType: tx.loanType ?? null,
+        loanStatus: tx.loanStatus ?? null,
+      };
+  }).filter(Boolean);
+
+  const accounts = Array.isArray(data.accounts) ? data.accounts : null;
+  const cleanAccounts = accounts ? accounts.map((acc: any, index: number) => {
+    if (!acc || typeof acc !== 'object') {
+      errors.push(`Account #${index + 1} is invalid.`);
+      return null;
+    }
+    if (!acc.name || typeof acc.name !== 'string') {
+      errors.push(`Account #${index + 1} is missing a name.`);
+    }
+    if (acc.type && !['Cash', 'Bank', 'Mobile'].includes(acc.type)) {
+      errors.push(`Account "${acc.name || index + 1}" has invalid type.`);
+    }
+    return {
+      id: typeof acc.id === 'number' ? acc.id : undefined,
+      name: acc.name,
+      type: acc.type ?? 'Cash',
+      balance: normalizeString(acc.balance) ?? '0',
+    };
+  }).filter(Boolean) : undefined;
+
+  const clean = {
+    settings: {
+      id: settings.id,
+      currencySymbol: typeof settings.currencySymbol === 'string' ? settings.currencySymbol : '?',
+      isSetupComplete: settings.isSetupComplete ?? true,
+      updatedAt: settings.updatedAt,
+    },
+    categories: cleanCategories,
+    transactions: cleanTransactions,
+    accounts: cleanAccounts,
+  };
+
+  return { errors, clean };
+};
+
 export function useExportData() {
   const { toast } = useToast();
   
@@ -252,16 +408,25 @@ export function useImportData() {
 
   return useMutation({
     mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }) => {
+      const { errors, clean } = validateImportData(data as any);
+      if (errors.length > 0 || !clean) {
+        const message = errors.slice(0, 5).join(' ');
+        throw new Error(message || 'Import file is invalid.');
+      }
       await storage.resetAllData();
-      await storage.importData(data);
-      return { success: true, count: data.transactions?.length || 0 };
+      await storage.importData(clean as any);
+      return { success: true, count: clean.transactions?.length || 0 };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries();
       toast({ title: "Import successful", description: `Imported ${result.count} transactions.` });
     },
-    onError: () => {
-      toast({ title: "Import failed", description: "Could not import data.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({
+        title: "Import failed",
+        description: error?.message || "Could not import data.",
+        variant: "destructive",
+      });
     },
   });
 }

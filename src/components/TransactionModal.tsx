@@ -56,6 +56,12 @@ export function TransactionModal({
   const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [tagsInput, setTagsInput] = useState("");
+
+  const parseTags = (value: string) => value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   const currency = settings?.currencySymbol || "$";
   const cashAccount = accounts?.find((acc) => acc.name === "Cash");
@@ -70,11 +76,11 @@ export function TransactionModal({
       loanSettlementAccountId: null,
       counterparty: "",
       note: "",
-      isRecurring: false,
       date: new Date(),
       type: "expense",
       loanType: null,
       loanStatus: "open",
+      tags: [],
     },
   });
 
@@ -91,12 +97,13 @@ export function TransactionModal({
         loanSettlementAccountId: transaction.loanSettlementAccountId ?? (transaction.loanStatus === "settled" ? transaction.accountId ?? null : null),
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
-        isRecurring: transaction.isRecurring ?? false,
         date: transaction.date ? new Date(transaction.date) : new Date(),
         type: transaction.type ?? "expense",
         loanType: transaction.loanType ?? null,
         loanStatus: transaction.loanStatus ?? (transaction.type === "loan" ? "open" : null),
+        tags: transaction.tags ?? [],
       });
+      setTagsInput((transaction.tags || []).join(", "));
       return;
     }
 
@@ -109,25 +116,27 @@ export function TransactionModal({
       loanSettlementAccountId: null,
       counterparty: "",
       note: "",
-      isRecurring: false,
       date: new Date(),
       type: "expense",
       loanType: null,
       loanStatus: "open",
+      tags: [],
     });
+    setTagsInput("");
   }, [open, cashAccount?.id, form, transaction]);
 
   const onSubmit = (values: FormValues) => {
+    const tags = parseTags(tagsInput);
     if (transaction?.id) {
       updateTransaction(
-        { id: transaction.id, data: { ...values, amount: values.amount.toString() } },
+        { id: transaction.id, data: { ...values, amount: values.amount.toString(), tags } },
         { onSuccess: () => onOpenChange(false) }
       );
       return;
     }
 
     createTransaction(
-      { ...values, amount: values.amount.toString() },
+      { ...values, amount: values.amount.toString(), tags },
       { onSuccess: () => onOpenChange(false) }
     );
   };
@@ -389,6 +398,22 @@ export function TransactionModal({
                 </FormItem>
               )}
             />
+
+            <FormItem>
+              <FormLabel>Tags</FormLabel>
+              <FormControl>
+                <Input
+                  value={tagsInput}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setTagsInput(next);
+                    form.setValue("tags", parseTags(next));
+                  }}
+                  placeholder="e.g. groceries, family, trip"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
 
             {transaction?.id ? (
               <div className="grid grid-cols-2 gap-3">
