@@ -140,6 +140,9 @@ export class LocalStorage implements IStorage {
     if (!transaction.type) {
       transaction.type = 'expense';
     }
+    if (!Array.isArray(transaction.tags)) {
+      transaction.tags = [];
+    }
 
     if (transaction.type === 'loan' && !transaction.loanType) {
       transaction.loanType = transaction.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
@@ -208,6 +211,9 @@ export class LocalStorage implements IStorage {
       ...updates,
       date: updates.date ? (updates.date instanceof Date ? updates.date : new Date(updates.date)) : existing.date,
     };
+    if (!Array.isArray(merged.tags)) {
+      merged.tags = [];
+    }
 
     if (merged.categoryId && merged.categoryId !== existing.categoryId) {
       const cat = await this.getCategory(merged.categoryId);
@@ -510,6 +516,7 @@ export class LocalStorage implements IStorage {
           loanSettlementAccountId: settlementAccountId,
           counterparty: tx.counterparty ?? null,
           note: tx.note ?? null,
+          tags: Array.isArray(tx.tags) ? tx.tags : [],
           type: tx.type ?? 'expense',
           loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
           loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),

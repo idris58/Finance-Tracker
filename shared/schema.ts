@@ -27,6 +27,7 @@ export const insertTransactionSchema = z.object({
   loanSettlementAccountId: z.number().optional().nullable(),
   counterparty: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional().default([]),
   type: transactionTypeSchema.default("expense"),
   loanType: loanTypeSchema.optional().nullable(),
   loanStatus: loanStatusSchema.optional().nullable(),
@@ -69,6 +70,7 @@ export interface Transaction {
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
+  tags?: string[];
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
   loanStatus?: "open" | "settled" | null;

@@ -26,6 +26,7 @@ export interface Transaction {
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
   note?: string | null;
+  tags?: string[];
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
   loanStatus?: "open" | "settled" | null;

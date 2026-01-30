@@ -320,20 +320,21 @@ const validateImportData = (data: any) => {
     if (tx.loanStatus && !['open', 'settled'].includes(tx.loanStatus)) {
       errors.push(`Transaction #${index + 1} has invalid loanStatus.`);
     }
-    return {
-      amount: normalizeString(tx.amount) ?? '0',
-      categoryId: typeof tx.categoryId === 'number' ? tx.categoryId : null,
-      categoryName: tx.categoryName ?? null,
-      date: tx.date,
-      paymentMethod: tx.paymentMethod ?? '',
-      accountId: typeof tx.accountId === 'number' ? tx.accountId : null,
-      loanSettlementAccountId: typeof tx.loanSettlementAccountId === 'number' ? tx.loanSettlementAccountId : null,
-      counterparty: tx.counterparty ?? null,
-      note: tx.note ?? null,
-      type: tx.type ?? 'expense',
-      loanType: tx.loanType ?? null,
-      loanStatus: tx.loanStatus ?? null,
-    };
+      return {
+        amount: normalizeString(tx.amount) ?? '0',
+        categoryId: typeof tx.categoryId === 'number' ? tx.categoryId : null,
+        categoryName: tx.categoryName ?? null,
+        date: tx.date,
+        paymentMethod: tx.paymentMethod ?? '',
+        accountId: typeof tx.accountId === 'number' ? tx.accountId : null,
+        loanSettlementAccountId: typeof tx.loanSettlementAccountId === 'number' ? tx.loanSettlementAccountId : null,
+        counterparty: tx.counterparty ?? null,
+        note: tx.note ?? null,
+        tags: Array.isArray(tx.tags) ? tx.tags.map((tag: any) => String(tag)).filter((tag: string) => tag.trim().length > 0) : [],
+        type: tx.type ?? 'expense',
+        loanType: tx.loanType ?? null,
+        loanStatus: tx.loanStatus ?? null,
+      };
   }).filter(Boolean);
 
   const accounts = Array.isArray(data.accounts) ? data.accounts : null;

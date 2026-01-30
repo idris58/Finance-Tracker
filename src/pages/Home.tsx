@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Eye, EyeOff, Search } from "lucide-react";
+import { CalendarIcon, Eye, EyeOff } from "lucide-react";
+import { Link } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
@@ -77,19 +78,15 @@ export default function HomePage() {
               {format(monthDate, "MMMM yyyy")}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={monthDate}
-              onSelect={(date) => date && setMonthDate(date)}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <button className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-card/70">
-          <Search className="h-4 w-4 text-muted-foreground" />
-        </button>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={monthDate}
+            onSelect={(date) => date && setMonthDate(date)}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
       </div>
 
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.4)]">
@@ -182,6 +179,14 @@ export default function HomePage() {
 
         {!isLoading && filteredTransactions.length > 0 && (
           <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Recent transactions</p>
+              <Link href="/transactions">
+                <Button variant="outline" size="sm" className="rounded-full px-4">
+                  View all
+                </Button>
+              </Link>
+            </div>
             {Object.entries(grouped).map(([date, items]) => (
               <div key={date} className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
