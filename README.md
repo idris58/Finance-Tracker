@@ -13,14 +13,6 @@ Built as a practical finance app with a strong focus on simplicity, clean UX, an
 ## 🚀 Live Demo
 https://fh-sigma.vercel.app
 
-## 🖼️ Screenshots
-```md
-![Welcome](./screenshots/welcome.png)
-![Home](./screenshots/home.png)
-![Statistics](./screenshots/statistics.png)
-![Transaction](./screenshots/transaction.png)
-![Accounts](./screenshots/accounts.png)
-```
 
 ## ✨ Features
 
@@ -108,4 +100,4 @@ Email: [shamohammadidris45@gmail.com](mailto:shamohammadidris45@gmail.com)
 GitHub: [https://github.com/idris58](https://github.com/idris58)
 
 ## 📝 License
-MIT
+[MIT License](LICENSE).
