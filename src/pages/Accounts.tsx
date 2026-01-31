@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from "react";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat } from "lucide-react";
+import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts, useCreateAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 const accountTypes = [
-  { value: "Cash", label: "Cash", icon: CreditCard },
+  { value: "Cash", label: "Cash", icon: Wallet },
   { value: "Bank", label: "Bank", icon: Landmark },
-  { value: "Mobile", label: "Mobile Wallet", icon: CreditCard },
+  { value: "Mobile", label: "Mobile Wallet", icon: Smartphone },
 ] as const;
 
 type AccountForm = {
@@ -130,12 +130,12 @@ export default function AccountsPage() {
         <p className="mt-2 text-xs text-muted-foreground">Total from all accounts</p>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold">Accounts</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-full" disabled={(accounts || []).length < 2}>
+              <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
                 <Repeat className="mr-2 h-4 w-4" /> Transfer
               </Button>
             </DialogTrigger>
@@ -241,7 +241,7 @@ export default function AccountsPage() {
 
           <Dialog open={logOpen} onOpenChange={setLogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-full">
+              <Button variant="outline" className="rounded-full whitespace-nowrap">
                 Logs
               </Button>
             </DialogTrigger>
@@ -276,7 +276,7 @@ export default function AccountsPage() {
 
           <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-              <Button className="rounded-full">
+              <Button className="w-full rounded-full whitespace-nowrap sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" /> Add account
               </Button>
             </DialogTrigger>
