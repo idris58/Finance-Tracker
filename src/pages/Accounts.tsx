@@ -130,199 +130,201 @@ export default function AccountsPage() {
         <p className="mt-2 text-xs text-muted-foreground">Total from all accounts</p>
       </div>
 
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-lg font-semibold">Accounts</h3>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
-                <Repeat className="mr-2 h-4 w-4" /> Transfer
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-3xl">
-              <DialogHeader>
-                <DialogTitle>Transfer between accounts</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>From account</Label>
-                  <Select
-                    value={transferForm.fromAccountId?.toString() || ""}
-                    onValueChange={(value) => setTransferForm((prev) => ({ ...prev, fromAccountId: Number(value) }))}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Accounts</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
+                  <Repeat className="mr-2 h-4 w-4" /> Transfer
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle>Transfer between accounts</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>From account</Label>
+                    <Select
+                      value={transferForm.fromAccountId?.toString() || ""}
+                      onValueChange={(value) => setTransferForm((prev) => ({ ...prev, fromAccountId: Number(value) }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(accounts || []).map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>
+                            {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To account</Label>
+                    <Select
+                      value={transferForm.toAccountId?.toString() || ""}
+                      onValueChange={(value) => setTransferForm((prev) => ({ ...prev, toAccountId: Number(value) }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(accounts || []).map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>
+                            {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount</Label>
+                    <Input
+                      type="number"
+                      value={transferForm.amount}
+                      onChange={(event) => setTransferForm((prev) => ({ ...prev, amount: event.target.value }))}
+                    />
+                    {insufficientBalance && (
+                      <p className="text-xs text-rose-500">
+                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{fromBalance.toLocaleString()}.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between">
+                          {format(transferForm.date, "PPP")}
+                          <CalendarIcon className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={transferForm.date}
+                          onSelect={(date) => date && setTransferForm((prev) => ({ ...prev, date }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Note</Label>
+                    <Input
+                      value={transferForm.note}
+                      onChange={(event) => setTransferForm((prev) => ({ ...prev, note: event.target.value }))}
+                      placeholder="Optional note"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleTransfer}
+                    disabled={
+                      isTransferring ||
+                      !transferForm.fromAccountId ||
+                      !transferForm.toAccountId ||
+                      transferForm.fromAccountId === transferForm.toAccountId ||
+                      !transferForm.amount ||
+                      Number(transferForm.amount) <= 0 ||
+                      insufficientBalance
+                    }
+                    className="w-full"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(accounts || []).map((account) => (
-                        <SelectItem key={account.id} value={String(account.id)}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    Transfer
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>To account</Label>
-                  <Select
-                    value={transferForm.toAccountId?.toString() || ""}
-                    onValueChange={(value) => setTransferForm((prev) => ({ ...prev, toAccountId: Number(value) }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(accounts || []).map((account) => (
-                        <SelectItem key={account.id} value={String(account.id)}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Amount</Label>
-                  <Input
-                    type="number"
-                    value={transferForm.amount}
-                    onChange={(event) => setTransferForm((prev) => ({ ...prev, amount: event.target.value }))}
-                  />
-                  {insufficientBalance && (
-                    <p className="text-xs text-rose-500">
-                      Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{fromBalance.toLocaleString()}.
-                    </p>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={logOpen} onOpenChange={setLogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full whitespace-nowrap">
+                  Logs
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle>Transfer logs</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {(transfers || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No transfers yet.</p>
+                  ) : (
+                    (transfers || []).map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">
+                            {(accountNameMap.get(item.fromAccountId) || "Unknown")} {" -> "} {(accountNameMap.get(item.toAccountId) || "Unknown")}
+                          </span>
+                          <span className="font-semibold">{currency}{Number(item.amount).toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {format(new Date(item.date), "MMM d, yyyy p")}
+                        </div>
+                        {item.note && (
+                          <div className="mt-2 text-xs text-muted-foreground">{item.note}</div>
+                        )}
+                      </div>
+                    ))
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between">
-                        {format(transferForm.date, "PPP")}
-                        <CalendarIcon className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={transferForm.date}
-                        onSelect={(date) => date && setTransferForm((prev) => ({ ...prev, date }))}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-2">
-                  <Label>Note</Label>
-                  <Input
-                    value={transferForm.note}
-                    onChange={(event) => setTransferForm((prev) => ({ ...prev, note: event.target.value }))}
-                    placeholder="Optional note"
-                  />
-                </div>
-                <Button
-                  onClick={handleTransfer}
-                  disabled={
-                    isTransferring ||
-                    !transferForm.fromAccountId ||
-                    !transferForm.toAccountId ||
-                    transferForm.fromAccountId === transferForm.toAccountId ||
-                    !transferForm.amount ||
-                    Number(transferForm.amount) <= 0 ||
-                    insufficientBalance
-                  }
-                  className="w-full"
-                >
-                  Transfer
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={logOpen} onOpenChange={setLogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-full whitespace-nowrap">
-                Logs
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-3xl">
-              <DialogHeader>
-                <DialogTitle>Transfer logs</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                {(transfers || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No transfers yet.</p>
-                ) : (
-                  (transfers || []).map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-border/60 bg-card/80 p-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">
-                          {(accountNameMap.get(item.fromAccountId) || "Unknown")} {" -> "} {(accountNameMap.get(item.toAccountId) || "Unknown")}
-                        </span>
-                        <span className="font-semibold">{currency}{Number(item.amount).toLocaleString()}</span>
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {format(new Date(item.date), "MMM d, yyyy p")}
-                      </div>
-                      {item.note && (
-                        <div className="mt-2 text-xs text-muted-foreground">{item.note}</div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>
-              <Button className="w-full rounded-full whitespace-nowrap sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" /> Add account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-3xl">
-              <DialogHeader>
-                <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Account name</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                    placeholder="e.g. Cash, Bank"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accountTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Balance</Label>
-                  <Input
-                    type="number"
-                    value={form.balance}
-                    onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
-                  />
-                </div>
-                <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
-                  {form.id ? "Save changes" : "Create account"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
+
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogTrigger asChild>
+            <Button className="w-full rounded-full whitespace-nowrap">
+              <Plus className="mr-2 h-4 w-4" /> Add account
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-3xl">
+            <DialogHeader>
+              <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Account name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                  placeholder="e.g. Cash, Bank"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Balance</Label>
+                <Input
+                  type="number"
+                  value={form.balance}
+                  onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
+                />
+              </div>
+              <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
+                {form.id ? "Save changes" : "Create account"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="space-y-3">
