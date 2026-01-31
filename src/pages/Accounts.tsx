@@ -130,9 +130,9 @@ export default function AccountsPage() {
         <p className="mt-2 text-xs text-muted-foreground">Total from all accounts</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold">Accounts</h3>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
