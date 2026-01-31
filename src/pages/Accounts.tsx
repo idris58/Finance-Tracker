@@ -131,7 +131,7 @@ export default function AccountsPage() {
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between sm:items-center">
           <h3 className="text-lg font-semibold">Accounts</h3>
           <div className="flex flex-wrap items-center gap-2">
             <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
@@ -274,12 +274,61 @@ export default function AccountsPage() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={open} onOpenChange={handleOpenChange}>
+              <DialogTrigger asChild>
+                <Button className="hidden rounded-full whitespace-nowrap sm:inline-flex">
+                  <Plus className="mr-2 h-4 w-4" /> Add account
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Account name</Label>
+                    <Input
+                      value={form.name}
+                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                      placeholder="e.g. Cash, Bank"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accountTypes.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Balance</Label>
+                    <Input
+                      type="number"
+                      value={form.balance}
+                      onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
+                    />
+                  </div>
+                  <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
+                    {form.id ? "Save changes" : "Create account"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button className="w-full rounded-full whitespace-nowrap">
+            <Button className="w-full rounded-full whitespace-nowrap sm:hidden">
               <Plus className="mr-2 h-4 w-4" /> Add account
             </Button>
           </DialogTrigger>
