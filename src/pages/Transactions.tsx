@@ -1,8 +1,10 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Search } from "lucide-react";
+import { Search, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
@@ -21,7 +23,21 @@ export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
-  const { data: transactions, isLoading } = useTransactions();
+  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (monthFilter === "all") {
+      setPickerYear(new Date().getFullYear());
+    } else {
+      setPickerYear(Number(monthFilter.split("-")[0]));
+    }
+  }, [monthFilter]);
+
+  const { data: transactions, isLoading } = useTransactions({
+    month: monthFilter === "all" ? undefined : monthFilter,
+  });
   const { data: settings } = useSettings();
   const { openEdit } = useTransactionEditor();
 
@@ -69,6 +85,74 @@ export default function TransactionsPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="sm:w-56">
+            <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full rounded-2xl border-border/60 bg-card/70 px-3">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {monthFilter === "all"
+                    ? "All months"
+                    : format(new Date(`${monthFilter}-01`), "MMMM yyyy")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-4" align="start">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
+                    onClick={() => setPickerYear((prev) => prev - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="text-sm font-semibold">{pickerYear}</div>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
+                    onClick={() => setPickerYear((prev) => prev + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {Array.from({ length: 12 }, (_, idx) => {
+                    const monthLabel = format(new Date(2020, idx, 1), "MMM");
+                    const value = `${pickerYear}-${String(idx + 1).padStart(2, "0")}`;
+                    const isActive = monthFilter === value;
+                    return (
+                      <button
+                        key={monthLabel}
+                        type="button"
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          isActive
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border/60 bg-card/70 text-muted-foreground hover:border-primary/40"
+                        )}
+                        onClick={() => {
+                          setMonthFilter(value);
+                          setIsMonthPickerOpen(false);
+                        }}
+                      >
+                        {monthLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMonthFilter("all");
+                      setIsMonthPickerOpen(false);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>

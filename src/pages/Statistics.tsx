@@ -1,13 +1,12 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useMemo, useState, useEffect } from "react";
 import { format, subMonths } from "date-fns";
-import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const typeTabs = [
@@ -24,6 +23,12 @@ export default function StatisticsPage() {
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [chartMode, setChartMode] = useState<"bar" | "pie">("bar");
   const [monthDate, setMonthDate] = useState<Date>(new Date());
+  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  useEffect(() => {
+    setPickerYear(monthDate.getFullYear());
+  }, [monthDate]);
 
   const monthKey = format(monthDate, "yyyy-MM");
   const { data: settings } = useSettings();
@@ -250,20 +255,55 @@ export default function StatisticsPage() {
       </div>
 
       <div className="flex items-center justify-between">
-        <Popover>
+        <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="rounded-full border-border/60 bg-card/70 px-4">
               <CalendarIcon className="mr-2 h-4 w-4" />
               {format(monthDate, "MMMM yyyy")}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={monthDate}
-              onSelect={(date) => date && setMonthDate(date)}
-              initialFocus
-            />
+          <PopoverContent className="w-72 p-4" align="start">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
+                onClick={() => setPickerYear((prev) => prev - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="text-sm font-semibold">{pickerYear}</div>
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
+                onClick={() => setPickerYear((prev) => prev + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {Array.from({ length: 12 }, (_, idx) => {
+                const monthLabel = format(new Date(2020, idx, 1), "MMM");
+                const isActive = monthDate.getFullYear() === pickerYear && monthDate.getMonth() === idx;
+                return (
+                  <button
+                    key={monthLabel}
+                    type="button"
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm font-medium transition",
+                      isActive
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border/60 bg-card/70 text-muted-foreground hover:border-primary/40"
+                    )}
+                    onClick={() => {
+                      setMonthDate(new Date(pickerYear, idx, 1));
+                      setIsMonthPickerOpen(false);
+                    }}
+                  >
+                    {monthLabel}
+                  </button>
+                );
+              })}
+            </div>
           </PopoverContent>
         </Popover>
 

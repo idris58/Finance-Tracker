@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from "react";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone } from "lucide-react";
+import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts, useCreateAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -243,7 +243,7 @@ export default function AccountsPage() {
             <Dialog open={logOpen} onOpenChange={setLogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-full whitespace-nowrap">
-                  Logs
+                  <History className="mr-2 h-4 w-4" /> Logs
                 </Button>
               </DialogTrigger>
               <DialogContent className="rounded-3xl">
