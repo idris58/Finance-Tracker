@@ -166,6 +166,15 @@ class FinanceDatabase extends Dexie {
       accounts: '++id, name',
       transfers: '++id, date, fromAccountId, toAccountId',
     });
+
+    // Migration: Add indexes for account-linked lookups
+    this.version(8).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId, loanSettlementAccountId, paymentMethod',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+    });
   }
 }
 

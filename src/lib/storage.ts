@@ -358,6 +358,16 @@ export class LocalStorage implements IStorage {
   }
 
   async deleteAccount(id: number): Promise<void> {
+    const account = await db.accounts.get(id);
+    if (!account) {
+      throw new Error('Account not found');
+    }
+    const directCount = await db.transactions.where('accountId').equals(id).count();
+    const settlementCount = await db.transactions.where('loanSettlementAccountId').equals(id).count();
+    const nameCount = await db.transactions.where('paymentMethod').equals(account.name).count();
+    if (directCount > 0 || settlementCount > 0 || nameCount > 0) {
+      throw new Error('Account has linked transactions. Remove or edit those transactions first.');
+    }
     await db.accounts.delete(id);
   }
 

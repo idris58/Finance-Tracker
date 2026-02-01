@@ -186,6 +186,13 @@ export function useDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account deleted", description: "Account removed successfully." });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Account not deleted",
+        description: error?.message || "Could not delete account.",
+        variant: "destructive",
+      });
+    },
   });
 }
 

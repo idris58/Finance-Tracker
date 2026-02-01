@@ -1,9 +1,19 @@
 ﻿import { useMemo, useState } from "react";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History } from "lucide-react";
+import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts, useCreateAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
+import { useAccounts, useCreateAccount, useDeleteAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -37,11 +47,13 @@ export default function AccountsPage() {
   const { data: settings } = useSettings();
   const { mutate: createAccount, isPending: isCreating } = useCreateAccount();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
+  const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
   const { mutate: transferBetweenAccounts, isPending: isTransferring } = useTransferBetweenAccounts();
   const { data: transfers } = useTransfers();
 
   const [open, setOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [form, setForm] = useState<AccountForm>({ name: "", type: "Cash", balance: "0" });
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferForm, setTransferForm] = useState<TransferForm>({
@@ -120,6 +132,24 @@ export default function AccountsPage() {
   const handleEdit = (account: AccountForm) => {
     setForm(account);
     setOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (!form.id) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!form.id) return;
+    deleteAccount(form.id, {
+      onSuccess: () => {
+        setDeleteConfirmOpen(false);
+        handleOpenChange(false);
+      },
+      onError: () => {
+        setDeleteConfirmOpen(false);
+      },
+    });
   };
 
   return (
@@ -317,9 +347,22 @@ export default function AccountsPage() {
                       onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
                     />
                   </div>
+                <div className={form.id ? "flex gap-2" : ""}>
+                  {form.id && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </Button>
+                  )}
                   <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
                     {form.id ? "Save changes" : "Create account"}
                   </Button>
+                </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -368,13 +411,41 @@ export default function AccountsPage() {
                   onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
                 />
               </div>
-              <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
-                {form.id ? "Save changes" : "Create account"}
-              </Button>
+              <div className={form.id ? "flex gap-2" : ""}>
+                {form.id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </Button>
+                )}
+                <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
+                  {form.id ? "Save changes" : "Create account"}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
       </div>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the account. Deletion is blocked if any transactions use it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="space-y-3">
         {(accounts || []).length === 0 ? (
