@@ -1,8 +1,9 @@
 ﻿import { useMemo, useState, useEffect } from "react";
 import { format, subMonths } from "date-fns";
-import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export default function StatisticsPage() {
   }, [monthDate]);
 
   const monthKey = format(monthDate, "yyyy-MM");
+  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { data: settings } = useSettings();
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions({ month: monthKey });
@@ -151,7 +153,19 @@ export default function StatisticsPage() {
             <button className="w-full text-left">
               <p className="text-sm text-muted-foreground">Total balance</p>
               <div className="mt-2 flex items-center gap-2">
-                <h2 className="text-3xl font-semibold">{currency}{totalBalance.toLocaleString()}</h2>
+                <h2 className="text-3xl font-semibold">
+                  {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
+                </h2>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleHideBalance();
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
+                >
+                  {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">Tap for details</p>

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,7 @@ export default function HomePage() {
   const [monthDate, setMonthDate] = useState<Date>(new Date());
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  const [hideBalance, setHideBalance] = useState<boolean>(() => {
-    const saved = localStorage.getItem("hideBalance");
-    return saved === "true";
-  });
+  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
 
 
   useEffect(() => {
@@ -67,12 +65,6 @@ export default function HomePage() {
     });
     return groups;
   }, [filteredTransactions]);
-
-  const handleTogglePrivacy = () => {
-    const next = !hideBalance;
-    setHideBalance(next);
-    localStorage.setItem("hideBalance", String(next));
-  };
 
   return (
     <div className="space-y-6">
@@ -139,7 +131,7 @@ export default function HomePage() {
                 {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
               </h2>
               <button
-                onClick={handleTogglePrivacy}
+                onClick={toggleHideBalance}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
               >
                 {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

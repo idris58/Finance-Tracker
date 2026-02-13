@@ -1,7 +1,8 @@
 ﻿import { useMemo, useState } from "react";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2 } from "lucide-react";
+import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts, useCreateAccount, useDeleteAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -44,6 +45,7 @@ type TransferForm = {
 
 export default function AccountsPage() {
   const { data: accounts } = useAccounts();
+  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { data: settings } = useSettings();
   const { mutate: createAccount, isPending: isCreating } = useCreateAccount();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
@@ -156,7 +158,18 @@ export default function AccountsPage() {
     <div className="space-y-6">
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6">
         <p className="text-sm text-muted-foreground">Total balance</p>
-        <h2 className="mt-2 text-3xl font-semibold">{currency}{totalBalance.toLocaleString()}</h2>
+        <div className="mt-2 flex items-center gap-3">
+          <h2 className="text-3xl font-semibold">
+            {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
+          </h2>
+          <button
+            type="button"
+            onClick={toggleHideBalance}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
+          >
+            {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <p className="mt-2 text-xs text-muted-foreground">Total from all accounts</p>
       </div>
 
