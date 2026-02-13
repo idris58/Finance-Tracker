@@ -185,28 +185,57 @@ export default function StatisticsPage() {
 
               {yearSummary.table.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
-                  <div className="grid grid-cols-6 gap-1 border-b border-border/60 bg-secondary/60 px-3 py-2 font-semibold text-muted-foreground">
-                    <span>Month</span>
-                    <span>Expense</span>
-                    <span>Income</span>
-                    <span>Lend</span>
-                    <span>Borrow</span>
-                    <span>Balance</span>
-                  </div>
-                  <div className="divide-y divide-border/60">
+                  <div className="divide-y divide-border/60 md:hidden">
                     {yearSummary.table.map((row) => (
-                      <div key={row.month} className="grid grid-cols-6 gap-1 px-3 py-2 text-sm">
-                        <span className="font-medium">{format(new Date(`${row.month}-01`), "MMMM")}</span>
-                        <span>{currency}{row.expense.toLocaleString()}</span>
-                        <span>{currency}{row.income.toLocaleString()}</span>
-                        <span>{currency}{row.lend.toLocaleString()}</span>
-                        <span>{currency}{row.borrow.toLocaleString()}</span>
-                        <span className={row.balance < 0 ? "text-rose-500" : "text-emerald-500"}>
-                          {currency}{row.balance.toLocaleString()}
-                        </span>
+                      <div key={row.month} className="space-y-2 px-3 py-3 text-sm">
+                        <div className="font-semibold">
+                          {format(new Date(`${row.month}-01`), "MMMM")}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                          <span className="text-muted-foreground">Expense</span>
+                          <span className="text-right">{currency}{row.expense.toLocaleString()}</span>
+                          <span className="text-muted-foreground">Income</span>
+                          <span className="text-right">{currency}{row.income.toLocaleString()}</span>
+                          <span className="text-muted-foreground">Lend</span>
+                          <span className="text-right">{currency}{row.lend.toLocaleString()}</span>
+                          <span className="text-muted-foreground">Borrow</span>
+                          <span className="text-right">{currency}{row.borrow.toLocaleString()}</span>
+                          <span className="text-muted-foreground">Balance</span>
+                          <span className={cn("text-right font-semibold", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
+                            {currency}{row.balance.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
+                  <table className="hidden w-full table-fixed text-sm md:table">
+                      <thead>
+                        <tr className="border-b border-border/60 bg-secondary/60 text-muted-foreground">
+                          <th className="px-3 py-2 text-left font-semibold">Month</th>
+                          <th className="px-3 py-2 text-right font-semibold">Expense</th>
+                          <th className="px-3 py-2 text-right font-semibold">Income</th>
+                          <th className="px-3 py-2 text-right font-semibold">Lend</th>
+                          <th className="px-3 py-2 text-right font-semibold">Borrow</th>
+                          <th className="px-3 py-2 text-right font-semibold">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {yearSummary.table.map((row) => (
+                          <tr key={row.month} className="border-b border-border/60 last:border-b-0">
+                            <td className="px-3 py-2 font-medium">
+                              {format(new Date(`${row.month}-01`), "MMMM")}
+                            </td>
+                            <td className="px-3 py-2 text-right">{currency}{row.expense.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{currency}{row.income.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{currency}{row.lend.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{currency}{row.borrow.toLocaleString()}</td>
+                            <td className={cn("px-3 py-2 text-right", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
+                              {currency}{row.balance.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                 </div>
               )}
             </div>
