@@ -1,4 +1,4 @@
-﻿import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account } from './db';
+﻿import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer } from './db';
 
 export interface IStorage {
   // Settings
@@ -25,7 +25,7 @@ export interface IStorage {
   getTransfers(limit?: number): Promise<{ id?: number; fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }[]>;
 
   // Bulk (for Import)
-  importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void>;
+  importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void>;
 
   // Reset all data
   resetAllData(): Promise<void>;
@@ -416,7 +416,7 @@ export class LocalStorage implements IStorage {
     return mapped;
   }
 
-  async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }): Promise<void> {
+  async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void> {
     const hasAccounts = Array.isArray(data.accounts) && data.accounts.length > 0;
     const oldAccountIdToName = new Map<number, string>();
     const nameToAccountId = new Map<string, number>();
@@ -534,6 +534,41 @@ export class LocalStorage implements IStorage {
       }
     }
 
+    if (data.transfers && data.transfers.length > 0) {
+      const accounts = await db.accounts.toArray();
+      for (const account of accounts) {
+        if (account.id !== undefined) {
+          nameToAccountId.set(account.name, account.id);
+        }
+      }
+
+      for (const item of data.transfers) {
+        let fromAccountId = item.fromAccountId;
+        if (oldAccountIdToName.has(fromAccountId)) {
+          const fromName = oldAccountIdToName.get(fromAccountId)!;
+          fromAccountId = nameToAccountId.get(fromName) ?? fromAccountId;
+        }
+
+        let toAccountId = item.toAccountId;
+        if (oldAccountIdToName.has(toAccountId)) {
+          const toName = oldAccountIdToName.get(toAccountId)!;
+          toAccountId = nameToAccountId.get(toName) ?? toAccountId;
+        }
+
+        const fromExists = await db.accounts.get(fromAccountId);
+        const toExists = await db.accounts.get(toAccountId);
+        if (!fromExists || !toExists) continue;
+
+        await db.transfers.add({
+          fromAccountId,
+          toAccountId,
+          amount: String(item.amount ?? '0'),
+          note: item.note ?? null,
+          date: item.date instanceof Date ? item.date : new Date(item.date),
+        });
+      }
+    }
+
     if (!hasAccounts && data.transactions && data.transactions.length > 0) {
       const transactions = await db.transactions.toArray();
       const accounts = await db.accounts.toArray();
@@ -563,6 +598,7 @@ export class LocalStorage implements IStorage {
     await db.categories.clear();
     await db.transactions.clear();
     await db.accounts.clear();
+    await db.transfers.clear();
 
     await initializeDatabase();
   }

@@ -364,6 +364,34 @@ const validateImportData = (data: any) => {
     };
   }).filter(Boolean) : undefined;
 
+  const transfers = Array.isArray(data.transfers) ? data.transfers : [];
+  const cleanTransfers = transfers.map((item: any, index: number) => {
+    if (!item || typeof item !== 'object') {
+      errors.push(`Transfer #${index + 1} is invalid.`);
+      return null;
+    }
+    if (typeof item.fromAccountId !== 'number') {
+      errors.push(`Transfer #${index + 1} has invalid fromAccountId.`);
+    }
+    if (typeof item.toAccountId !== 'number') {
+      errors.push(`Transfer #${index + 1} has invalid toAccountId.`);
+    }
+    if (item.amount === undefined || item.amount === null || isNaN(Number(item.amount))) {
+      errors.push(`Transfer #${index + 1} has invalid amount.`);
+    }
+    if (!item.date || isNaN(new Date(item.date).getTime())) {
+      errors.push(`Transfer #${index + 1} has invalid date.`);
+    }
+    return {
+      id: typeof item.id === 'number' ? item.id : undefined,
+      fromAccountId: typeof item.fromAccountId === 'number' ? item.fromAccountId : 0,
+      toAccountId: typeof item.toAccountId === 'number' ? item.toAccountId : 0,
+      amount: normalizeString(item.amount) ?? '0',
+      note: item.note ?? null,
+      date: item.date,
+    };
+  }).filter(Boolean);
+
   const clean = {
     settings: {
       id: settings.id,
@@ -374,6 +402,7 @@ const validateImportData = (data: any) => {
     categories: cleanCategories,
     transactions: cleanTransactions,
     accounts: cleanAccounts,
+    transfers: cleanTransfers,
   };
 
   return { errors, clean };
@@ -388,8 +417,9 @@ export function useExportData() {
       const categories = await storage.getCategories();
       const transactions = await storage.getTransactions();
       const accounts = await storage.getAccounts();
-      
-      const data = { settings, categories, transactions, accounts };
+      const transfers = await storage.getTransfers();
+
+      const data = { settings, categories, transactions, accounts, transfers };
       
       // Trigger download
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -414,7 +444,7 @@ export function useImportData() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[] }) => {
+    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }) => {
       const { errors, clean } = validateImportData(data as any);
       if (errors.length > 0 || !clean) {
         const message = errors.slice(0, 5).join(' ');
