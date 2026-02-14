@@ -1,4 +1,5 @@
 ﻿import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer } from './db';
+import { roundMoney, toMoneyString } from './money';
 
 export interface IStorage {
   // Settings
@@ -34,18 +35,18 @@ export interface IStorage {
 export class LocalStorage implements IStorage {
   private getBalanceDelta(tx: Transaction): number {
     const amount = Number(tx.amount);
-    if ((tx.type || 'expense') === 'income') return amount;
-    if ((tx.type || 'expense') === 'expense') return -amount;
+    if ((tx.type || 'expense') === 'income') return roundMoney(amount);
+    if ((tx.type || 'expense') === 'expense') return roundMoney(-amount);
     if (tx.type === 'loan') {
-      return tx.loanType === 'borrow' ? amount : -amount;
+      return roundMoney(tx.loanType === 'borrow' ? amount : -amount);
     }
-    return -amount;
+    return roundMoney(-amount);
   }
 
   private getSettlementDelta(tx: Transaction): number {
     if (tx.type !== 'loan' || tx.loanStatus !== 'settled') return 0;
     const amount = Number(tx.amount);
-    return tx.loanType === 'borrow' ? -amount : amount;
+    return roundMoney(tx.loanType === 'borrow' ? -amount : amount);
   }
 
   async getSettings(): Promise<Settings> {
@@ -98,9 +99,9 @@ export class LocalStorage implements IStorage {
     let query = db.transactions.orderBy('date').reverse();
 
     if (month) {
-      const startOfMonth = new Date(`${month}-01`);
-      const endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 0);
-      endOfMonth.setHours(23, 59, 59, 999);
+      const [year, monthNumber] = month.split('-').map(Number);
+      const startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0, 0);
+      const endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59, 999);
 
       query = query.filter((tx) => {
         const txDate = new Date(tx.date);
@@ -183,8 +184,8 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(transaction.accountId);
       if (account) {
         const delta = this.getBalanceDelta(transaction as Transaction);
-        const newBalance = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+        const newBalance = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(newBalance) });
       }
     }
 
@@ -192,8 +193,8 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(transaction.loanSettlementAccountId);
       if (account) {
         const delta = this.getSettlementDelta(transaction as Transaction);
-        const newBalance = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+        const newBalance = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(newBalance) });
       }
     }
 
@@ -256,22 +257,22 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(existing.accountId);
       if (account) {
         const delta = newDelta - oldDelta;
-        const next = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: next.toString() });
+        const next = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(next) });
       }
     } else {
       if (existing.accountId) {
         const oldAccount = await this.getAccount(existing.accountId);
         if (oldAccount) {
-          const next = Number(oldAccount.balance || 0) - oldDelta;
-          await this.updateAccount(oldAccount.id!, { balance: next.toString() });
+          const next = roundMoney(Number(oldAccount.balance || 0) - oldDelta);
+          await this.updateAccount(oldAccount.id!, { balance: toMoneyString(next) });
         }
       }
       if (merged.accountId) {
         const newAccount = await this.getAccount(merged.accountId);
         if (newAccount) {
-          const next = Number(newAccount.balance || 0) + newDelta;
-          await this.updateAccount(newAccount.id!, { balance: next.toString() });
+          const next = roundMoney(Number(newAccount.balance || 0) + newDelta);
+          await this.updateAccount(newAccount.id!, { balance: toMoneyString(next) });
         }
       }
     }
@@ -280,22 +281,22 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(existing.loanSettlementAccountId);
       if (account) {
         const delta = newSettlementDelta - oldSettlementDelta;
-        const next = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: next.toString() });
+        const next = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(next) });
       }
     } else {
       if (existing.loanSettlementAccountId) {
         const oldAccount = await this.getAccount(existing.loanSettlementAccountId);
         if (oldAccount) {
-          const next = Number(oldAccount.balance || 0) - oldSettlementDelta;
-          await this.updateAccount(oldAccount.id!, { balance: next.toString() });
+          const next = roundMoney(Number(oldAccount.balance || 0) - oldSettlementDelta);
+          await this.updateAccount(oldAccount.id!, { balance: toMoneyString(next) });
         }
       }
       if (merged.loanSettlementAccountId) {
         const newAccount = await this.getAccount(merged.loanSettlementAccountId);
         if (newAccount) {
-          const next = Number(newAccount.balance || 0) + newSettlementDelta;
-          await this.updateAccount(newAccount.id!, { balance: next.toString() });
+          const next = roundMoney(Number(newAccount.balance || 0) + newSettlementDelta);
+          await this.updateAccount(newAccount.id!, { balance: toMoneyString(next) });
         }
       }
     }
@@ -314,8 +315,8 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(existing.accountId);
       if (account) {
         const delta = -this.getBalanceDelta(existing);
-        const newBalance = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+        const newBalance = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(newBalance) });
       }
     }
 
@@ -323,8 +324,8 @@ export class LocalStorage implements IStorage {
       const account = await this.getAccount(existing.loanSettlementAccountId);
       if (account) {
         const delta = -this.getSettlementDelta(existing);
-        const newBalance = Number(account.balance || 0) + delta;
-        await this.updateAccount(account.id!, { balance: newBalance.toString() });
+        const newBalance = roundMoney(Number(account.balance || 0) + delta);
+        await this.updateAccount(account.id!, { balance: toMoneyString(newBalance) });
       }
     }
 
@@ -340,7 +341,8 @@ export class LocalStorage implements IStorage {
   }
 
   async createAccount(account: Omit<Account, 'id'>): Promise<Account> {
-    const id = await db.accounts.add(account as Account);
+    const normalized = { ...account, balance: toMoneyString(Number(account.balance || 0)) };
+    const id = await db.accounts.add(normalized as Account);
     const created = await db.accounts.get(id);
     if (!created) {
       throw new Error('Failed to create account');
@@ -349,7 +351,11 @@ export class LocalStorage implements IStorage {
   }
 
   async updateAccount(id: number, updates: Partial<Omit<Account, 'id'>>): Promise<Account> {
-    await db.accounts.update(id, updates);
+    const normalized = {
+      ...updates,
+      ...(updates.balance !== undefined ? { balance: toMoneyString(Number(updates.balance || 0)) } : {}),
+    };
+    await db.accounts.update(id, normalized);
     const updated = await db.accounts.get(id);
     if (!updated) {
       throw new Error('Account not found');
@@ -391,16 +397,16 @@ export class LocalStorage implements IStorage {
       throw new Error('Insufficient balance in the selected account.');
     }
 
-    const fromBalance = Number(from.balance || 0) - parsedAmount;
-    const toBalance = Number(to.balance || 0) + parsedAmount;
+    const fromBalance = roundMoney(Number(from.balance || 0) - parsedAmount);
+    const toBalance = roundMoney(Number(to.balance || 0) + parsedAmount);
 
-    await this.updateAccount(fromAccountId, { balance: fromBalance.toString() });
-    await this.updateAccount(toAccountId, { balance: toBalance.toString() });
+    await this.updateAccount(fromAccountId, { balance: toMoneyString(fromBalance) });
+    await this.updateAccount(toAccountId, { balance: toMoneyString(toBalance) });
 
     await db.transfers.add({
       fromAccountId,
       toAccountId,
-      amount: parsedAmount.toString(),
+      amount: toMoneyString(parsedAmount),
       note: note ?? null,
       date: date ?? new Date(),
     });
@@ -581,14 +587,14 @@ export class LocalStorage implements IStorage {
       for (const tx of transactions) {
         if (!tx.accountId) continue;
         const current = balanceMap.get(tx.accountId) ?? 0;
-        balanceMap.set(tx.accountId, current + this.getBalanceDelta(tx));
+        balanceMap.set(tx.accountId, roundMoney(current + this.getBalanceDelta(tx)));
         if (tx.loanSettlementAccountId) {
           const settleCurrent = balanceMap.get(tx.loanSettlementAccountId) ?? 0;
-          balanceMap.set(tx.loanSettlementAccountId, settleCurrent + this.getSettlementDelta(tx));
+          balanceMap.set(tx.loanSettlementAccountId, roundMoney(settleCurrent + this.getSettlementDelta(tx)));
         }
       }
       for (const [id, balance] of balanceMap.entries()) {
-        await this.updateAccount(id, { balance: balance.toString() });
+        await this.updateAccount(id, { balance: toMoneyString(balance) });
       }
     }
   }

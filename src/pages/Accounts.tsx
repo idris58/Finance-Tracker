@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatMoney, roundMoney } from "@/lib/money";
 
 const accountTypes = [
   { value: "Cash", label: "Cash", icon: Wallet },
@@ -67,7 +68,7 @@ export default function AccountsPage() {
   });
 
   const totalBalance = useMemo(
-    () => accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0,
+    () => roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0),
     [accounts]
   );
   const currency = settings?.currencySymbol || "$";
@@ -160,7 +161,7 @@ export default function AccountsPage() {
         <p className="text-sm text-muted-foreground">Total balance</p>
         <div className="mt-2 flex items-center gap-3">
           <h2 className="text-3xl font-semibold">
-            {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
+            {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
           </h2>
           <button
             type="button"
@@ -233,7 +234,7 @@ export default function AccountsPage() {
                     />
                     {insufficientBalance && (
                       <p className="text-xs text-rose-500">
-                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{fromBalance.toLocaleString()}.
+                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{formatMoney(fromBalance)}.
                       </p>
                     )}
                   </div>
@@ -303,7 +304,7 @@ export default function AccountsPage() {
                           <span className="font-medium">
                             {(accountNameMap.get(item.fromAccountId) || "Unknown")} {" -> "} {(accountNameMap.get(item.toAccountId) || "Unknown")}
                           </span>
-                          <span className="font-semibold">{currency}{Number(item.amount).toLocaleString()}</span>
+                          <span className="font-semibold">{currency}{formatMoney(Number(item.amount))}</span>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground">
                           {format(new Date(item.date), "MMM d, yyyy p")}
@@ -489,7 +490,7 @@ export default function AccountsPage() {
                     <p className="text-xs text-muted-foreground">{account.type}</p>
                   </div>
                 </div>
-                <span className="font-semibold">{currency}{Number(account.balance || 0).toLocaleString()}</span>
+                <span className="font-semibold">{currency}{formatMoney(Number(account.balance || 0))}</span>
               </button>
             );
           })

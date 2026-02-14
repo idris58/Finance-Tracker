@@ -6,6 +6,7 @@ import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
+import { formatMoney, roundMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -19,6 +20,35 @@ const typeTabs = [
 type TxType = (typeof typeTabs)[number]["id"];
 
 const palette = ["#f97316", "#f43f5e", "#a855f7", "#38bdf8", "#22c55e", "#facc15", "#14b8a6", "#6366f1"];
+
+const monthKeyToDate = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+};
+
+const ChartTooltip = ({
+  active,
+  payload,
+  label,
+  currency,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  currency: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const point = payload[0];
+  const value = Number(point?.value || 0);
+  const name = point?.payload?.name || label || "Category";
+
+  return (
+    <div className="rounded-xl border border-border/70 bg-card px-3 py-2 shadow-lg">
+      <p className="text-xs font-medium text-foreground">{name}</p>
+      <p className="text-sm font-semibold text-foreground">{currency}{formatMoney(value)}</p>
+    </div>
+  );
+};
 
 export default function StatisticsPage() {
   const [activeType, setActiveType] = useState<TxType>("expense");
@@ -39,7 +69,7 @@ export default function StatisticsPage() {
   const { data: allTransactions } = useTransactions();
 
   const currency = settings?.currencySymbol || "$";
-  const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
+  const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -51,7 +81,7 @@ export default function StatisticsPage() {
         return;
       }
       const key = tx.categoryName || "Uncategorized";
-      totals[key] = (totals[key] || 0) + Number(tx.amount);
+      totals[key] = roundMoney((totals[key] || 0) + Number(tx.amount));
     });
     return Object.entries(totals)
       .map(([name, value]) => ({ name, value }))
@@ -71,22 +101,22 @@ export default function StatisticsPage() {
       const key = format(txDate, "yyyy-MM");
       if (!rows[key]) rows[key] = { expense: 0, income: 0, borrow: 0, lend: 0 };
       if ((tx.type || "expense") === "expense") {
-        rows[key].expense += Number(tx.amount);
-        totalExpense += Number(tx.amount);
+        rows[key].expense = roundMoney(rows[key].expense + Number(tx.amount));
+        totalExpense = roundMoney(totalExpense + Number(tx.amount));
       }
       if (tx.type === "income") {
-        rows[key].income += Number(tx.amount);
-        totalIncome += Number(tx.amount);
+        rows[key].income = roundMoney(rows[key].income + Number(tx.amount));
+        totalIncome = roundMoney(totalIncome + Number(tx.amount));
       }
-      if (tx.type === "loan" && tx.loanType === "borrow") rows[key].borrow += Number(tx.amount);
-      if (tx.type === "loan" && tx.loanType === "lend") rows[key].lend += Number(tx.amount);
+      if (tx.type === "loan" && tx.loanType === "borrow") rows[key].borrow = roundMoney(rows[key].borrow + Number(tx.amount));
+      if (tx.type === "loan" && tx.loanType === "lend") rows[key].lend = roundMoney(rows[key].lend + Number(tx.amount));
     });
 
     const table = Object.entries(rows)
       .map(([month, value]) => ({
         month,
         ...value,
-        balance: value.income - value.expense,
+        balance: roundMoney(value.income - value.expense),
       }))
       .sort((a, b) => (a.month < b.month ? 1 : -1));
 
@@ -105,12 +135,12 @@ export default function StatisticsPage() {
       const txMonth = format(new Date(tx.date), "yyyy-MM");
       const type = tx.type || "expense";
       if (txMonth === currentKey) {
-        if (type === "income") currentIncome += Number(tx.amount);
-        if (type === "expense") currentExpense += Number(tx.amount);
+        if (type === "income") currentIncome = roundMoney(currentIncome + Number(tx.amount));
+        if (type === "expense") currentExpense = roundMoney(currentExpense + Number(tx.amount));
       }
       if (txMonth === prevKey) {
-        if (type === "income") prevIncome += Number(tx.amount);
-        if (type === "expense") prevExpense += Number(tx.amount);
+        if (type === "income") prevIncome = roundMoney(prevIncome + Number(tx.amount));
+        if (type === "expense") prevExpense = roundMoney(prevExpense + Number(tx.amount));
       }
     });
 
@@ -154,7 +184,7 @@ export default function StatisticsPage() {
               <p className="text-sm text-muted-foreground">Total balance</p>
               <div className="mt-2 flex items-center gap-2">
                 <h2 className="text-3xl font-semibold">
-                  {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
+                  {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
                 </h2>
                 <button
                   type="button"
@@ -185,11 +215,11 @@ export default function StatisticsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total expense</p>
-                  <p className="mt-2 text-lg font-semibold">{currency}{yearSummary.totalExpense.toLocaleString()}</p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalExpense)}</p>
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total income</p>
-                  <p className="mt-2 text-lg font-semibold">{currency}{yearSummary.totalIncome.toLocaleString()}</p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalIncome)}</p>
                 </div>
               </div>
 
@@ -203,20 +233,20 @@ export default function StatisticsPage() {
                     {yearSummary.table.map((row) => (
                       <div key={row.month} className="space-y-2 px-3 py-3 text-sm">
                         <div className="font-semibold">
-                          {format(new Date(`${row.month}-01`), "MMMM")}
+                          {format(monthKeyToDate(row.month), "MMMM")}
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <span className="text-muted-foreground">Expense</span>
-                          <span className="text-right">{currency}{row.expense.toLocaleString()}</span>
+                          <span className="text-right">{currency}{formatMoney(row.expense)}</span>
                           <span className="text-muted-foreground">Income</span>
-                          <span className="text-right">{currency}{row.income.toLocaleString()}</span>
+                          <span className="text-right">{currency}{formatMoney(row.income)}</span>
                           <span className="text-muted-foreground">Lend</span>
-                          <span className="text-right">{currency}{row.lend.toLocaleString()}</span>
+                          <span className="text-right">{currency}{formatMoney(row.lend)}</span>
                           <span className="text-muted-foreground">Borrow</span>
-                          <span className="text-right">{currency}{row.borrow.toLocaleString()}</span>
+                          <span className="text-right">{currency}{formatMoney(row.borrow)}</span>
                           <span className="text-muted-foreground">Balance</span>
                           <span className={cn("text-right font-semibold", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
-                            {currency}{row.balance.toLocaleString()}
+                            {currency}{formatMoney(row.balance)}
                           </span>
                         </div>
                       </div>
@@ -237,14 +267,14 @@ export default function StatisticsPage() {
                         {yearSummary.table.map((row) => (
                           <tr key={row.month} className="border-b border-border/60 last:border-b-0">
                             <td className="px-3 py-2 font-medium">
-                              {format(new Date(`${row.month}-01`), "MMMM")}
+                              {format(monthKeyToDate(row.month), "MMMM")}
                             </td>
-                            <td className="px-3 py-2 text-right">{currency}{row.expense.toLocaleString()}</td>
-                            <td className="px-3 py-2 text-right">{currency}{row.income.toLocaleString()}</td>
-                            <td className="px-3 py-2 text-right">{currency}{row.lend.toLocaleString()}</td>
-                            <td className="px-3 py-2 text-right">{currency}{row.borrow.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.expense)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.income)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.lend)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.borrow)}</td>
                             <td className={cn("px-3 py-2 text-right", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
-                              {currency}{row.balance.toLocaleString()}
+                              {currency}{formatMoney(row.balance)}
                             </td>
                           </tr>
                         ))}
@@ -278,20 +308,20 @@ export default function StatisticsPage() {
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
           <p className="text-xs text-muted-foreground">Income (this month)</p>
           <p className="mt-2 text-lg font-semibold">
-            {currency}{monthlyComparison.income.current.toLocaleString()}
+            {currency}{formatMoney(monthlyComparison.income.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: {currency}{monthlyComparison.income.prev.toLocaleString()}</span>
+            <span>Last month: {currency}{formatMoney(monthlyComparison.income.prev)}</span>
             {renderChange(monthlyComparison.income.current, monthlyComparison.income.prev)}
           </div>
         </div>
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
           <p className="text-xs text-muted-foreground">Expense (this month)</p>
           <p className="mt-2 text-lg font-semibold">
-            {currency}{monthlyComparison.expense.current.toLocaleString()}
+            {currency}{formatMoney(monthlyComparison.expense.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: {currency}{monthlyComparison.expense.prev.toLocaleString()}</span>
+            <span>Last month: {currency}{formatMoney(monthlyComparison.expense.prev)}</span>
             {renderChange(monthlyComparison.expense.current, monthlyComparison.expense.prev, true)}
           </div>
         </div>
@@ -377,7 +407,7 @@ export default function StatisticsPage() {
                   <BarChart data={categoryTotals} barSize={32}>
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip currency={currency} />} />
                     <Bar dataKey="value" radius={[12, 12, 0, 0]}>
                       {categoryTotals.map((entry, index) => (
                         <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
@@ -386,7 +416,7 @@ export default function StatisticsPage() {
                   </BarChart>
                 ) : (
                   <PieChart>
-                  <Tooltip formatter={(value: number) => `${currency}${value}`} cursor={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip currency={currency} />} />
                     <Pie
                       data={categoryTotals}
                       dataKey="value"
@@ -428,7 +458,7 @@ export default function StatisticsPage() {
               </div>
               <span className="font-medium">{item.name}</span>
             </div>
-            <span className="font-semibold">{currency}{item.value.toLocaleString()}</span>
+            <span className="font-semibold">{currency}{formatMoney(item.value)}</span>
           </div>
         ))}
       </div>

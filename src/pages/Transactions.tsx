@@ -9,6 +9,7 @@ import { useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
+import { formatMoney } from "@/lib/money";
 
 const filterTabs = [
   { id: "all", label: "All" },
@@ -18,6 +19,11 @@ const filterTabs = [
 ] as const;
 
 type FilterType = (typeof filterTabs)[number]["id"];
+
+const monthKeyToDate = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+};
 
 export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,7 +99,7 @@ export default function TransactionsPage() {
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {monthFilter === "all"
                     ? "All months"
-                    : format(new Date(`${monthFilter}-01`), "MMMM yyyy")}
+                    : format(monthKeyToDate(monthFilter), "MMMM yyyy")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-4" align="start">
@@ -229,7 +235,7 @@ export default function TransactionsPage() {
               <div className="text-right">
                 <p className="font-semibold">
                   {tx.type === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
-                  {currency}{Number(tx.amount).toLocaleString()}
+                  {currency}{formatMoney(Number(tx.amount))}
                 </p>
                 <p className="text-xs text-muted-foreground">{format(new Date(tx.date), "p")}</p>
               </div>

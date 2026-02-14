@@ -9,6 +9,7 @@ import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
+import { formatMoney, roundMoney } from "@/lib/money";
 
 const typeTabs = [
   { id: "expense", label: "Expenses" },
@@ -37,14 +38,14 @@ export default function HomePage() {
   const { openEdit, openNew } = useTransactionEditor();
 
   const currency = settings?.currencySymbol || "$";
-  const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0;
+  const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
 
   const totals = useMemo(() => {
     const txs = transactions || [];
-    const totalExpense = txs.filter((tx) => (tx.type || "expense") === "expense").reduce((sum, tx) => sum + Number(tx.amount), 0);
-    const totalIncome = txs.filter((tx) => tx.type === "income").reduce((sum, tx) => sum + Number(tx.amount), 0);
-    const totalBorrow = txs.filter((tx) => tx.type === "loan" && tx.loanType === "borrow").reduce((sum, tx) => sum + Number(tx.amount), 0);
-    const totalLend = txs.filter((tx) => tx.type === "loan" && tx.loanType === "lend").reduce((sum, tx) => sum + Number(tx.amount), 0);
+    const totalExpense = roundMoney(txs.filter((tx) => (tx.type || "expense") === "expense").reduce((sum, tx) => sum + Number(tx.amount), 0));
+    const totalIncome = roundMoney(txs.filter((tx) => tx.type === "income").reduce((sum, tx) => sum + Number(tx.amount), 0));
+    const totalBorrow = roundMoney(txs.filter((tx) => tx.type === "loan" && tx.loanType === "borrow").reduce((sum, tx) => sum + Number(tx.amount), 0));
+    const totalLend = roundMoney(txs.filter((tx) => tx.type === "loan" && tx.loanType === "lend").reduce((sum, tx) => sum + Number(tx.amount), 0));
     return { totalExpense, totalIncome, totalBorrow, totalLend };
   }, [transactions]);
 
@@ -128,7 +129,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Total balance</p>
             <div className="mt-2 flex items-center gap-3">
               <h2 className="text-3xl font-semibold tracking-tight">
-                {hideBalance ? "******" : `${currency}${totalBalance.toLocaleString()}`}
+                {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
               </h2>
               <button
                 onClick={toggleHideBalance}
@@ -165,7 +166,7 @@ export default function HomePage() {
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
           <p className="text-sm text-muted-foreground">Total expenditure</p>
           <div className="mt-2 text-2xl font-semibold text-foreground">
-            {currency}{totals.totalExpense.toLocaleString()}
+            {currency}{formatMoney(totals.totalExpense)}
           </div>
         </div>
       )}
@@ -174,7 +175,7 @@ export default function HomePage() {
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
           <p className="text-sm text-muted-foreground">Total income</p>
           <div className="mt-2 text-2xl font-semibold text-foreground">
-            {currency}{totals.totalIncome.toLocaleString()}
+            {currency}{formatMoney(totals.totalIncome)}
           </div>
         </div>
       )}
@@ -184,13 +185,13 @@ export default function HomePage() {
           <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
             <p className="text-xs text-muted-foreground">Borrow</p>
             <div className="mt-2 text-xl font-semibold text-rose-500">
-              {currency}{totals.totalBorrow.toLocaleString()}
+              {currency}{formatMoney(totals.totalBorrow)}
             </div>
           </div>
           <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
             <p className="text-xs text-muted-foreground">Lend</p>
             <div className="mt-2 text-xl font-semibold text-emerald-500">
-              {currency}{totals.totalLend.toLocaleString()}
+              {currency}{formatMoney(totals.totalLend)}
             </div>
           </div>
         </div>
@@ -226,7 +227,7 @@ export default function HomePage() {
                   <span>{date}</span>
                   <span>
                     {currency}
-                    {items.reduce((sum, tx) => sum + Number(tx.amount), 0).toLocaleString()}
+                    {formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -269,7 +270,7 @@ export default function HomePage() {
                         </div>
                         <p className="font-semibold text-foreground">
                           {activeType === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
-                          {currency}{Number(tx.amount).toLocaleString()}
+                          {currency}{formatMoney(Number(tx.amount))}
                         </p>
                       </button>
                     );
