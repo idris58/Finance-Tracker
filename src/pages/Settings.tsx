@@ -146,6 +146,11 @@ export default function SettingsPage() {
                   ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
                   : "No cloud backup yet."}
               </p>
+              {cloudStatus.data?.connected && cloudStatus.data?.email && (
+                <p className="text-xs text-muted-foreground">
+                  Account: {cloudStatus.data.email}
+                </p>
+              )}
             </div>
             {cloudStatus.data?.connected ? (
               <Button

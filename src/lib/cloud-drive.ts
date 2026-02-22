@@ -1,5 +1,6 @@
 const GOOGLE_GIS_SCRIPT = "https://accounts.google.com/gsi/client";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const PROFILE_SCOPES = "openid email";
 const BACKUP_PREFIX = "finance-backup-";
 const RETENTION_COUNT = 2;
 const CLOUD_TOKEN_KEY = "cloudDriveToken";
@@ -118,7 +119,7 @@ const ensureTokenClient = async () => {
   if (!tokenClient) {
     tokenClient = oauth2.initTokenClient({
       client_id: clientId,
-      scope: DRIVE_SCOPE,
+      scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
       callback: () => {
         // callback is replaced per-request in requestAccessToken.
       },
@@ -145,7 +146,7 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
 
     const oneShotClient = oauth2.initTokenClient({
       client_id: clientId,
-      scope: DRIVE_SCOPE,
+      scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
       callback: (response: GoogleTokenResponse) => {
         if (response.error || !response.access_token) {
           reject(new Error(response.error_description || response.error || "Google sign-in failed."));
@@ -221,7 +222,8 @@ const enforceRetention = async () => {
 
 export const connectCloudDrive = async () => {
   await requestAccessToken("consent");
-  return { connected: true };
+  const email = await getCloudAccountEmail();
+  return { connected: true, email };
 };
 
 export const disconnectCloudDrive = () => {
@@ -231,6 +233,20 @@ export const disconnectCloudDrive = () => {
 };
 
 export const isCloudDriveConnected = () => !!accessToken && Date.now() < tokenExpiresAt;
+
+export const getCloudAccountEmail = async (): Promise<string | null> => {
+  const token = await getValidToken();
+  const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const data = (await response.json()) as { email?: string };
+  return data.email ?? null;
+};
 
 export const uploadBackupToCloud = async (backup: unknown) => {
   const metadata = {

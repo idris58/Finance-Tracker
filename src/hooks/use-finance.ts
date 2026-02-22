@@ -18,6 +18,7 @@ const CLOUD_BACKUP_STATE_KEY = "cloudBackupState";
 type CloudBackupState = {
   connected: boolean;
   lastBackupAt?: string;
+  email?: string | null;
 };
 
 const readCloudBackupState = (): CloudBackupState => {
@@ -37,6 +38,7 @@ const readCloudBackupState = (): CloudBackupState => {
     return {
       connected: !!parsed.connected,
       lastBackupAt: parsed.lastBackupAt,
+      email: parsed.email ?? null,
     };
   } catch {
     return { connected: false };
@@ -511,11 +513,13 @@ export function useCloudBackupStatus() {
       return {
         connected: saved.connected,
         lastBackupAt: saved.lastBackupAt ?? null,
+        email: saved.email ?? null,
       };
     },
     initialData: {
       connected: initial.connected,
       lastBackupAt: initial.lastBackupAt ?? null,
+      email: initial.email ?? null,
     },
     staleTime: Infinity,
   });
@@ -527,11 +531,11 @@ export function useCloudConnect() {
 
   return useMutation({
     mutationFn: async () => {
-      await connectCloudDrive();
+      return await connectCloudDrive();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       const previous = readCloudBackupState();
-      writeCloudBackupState({ ...previous, connected: true });
+      writeCloudBackupState({ ...previous, connected: true, email: result.email ?? null });
       queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
       toast({ title: "Google Drive connected", description: "Cloud backup is ready to use." });
     },
@@ -555,7 +559,7 @@ export function useCloudDisconnect() {
     },
     onSuccess: () => {
       const previous = readCloudBackupState();
-      writeCloudBackupState({ ...previous, connected: false });
+      writeCloudBackupState({ ...previous, connected: false, email: null });
       queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
       toast({ title: "Disconnected", description: "Google Drive cloud backup has been disconnected." });
     },
@@ -578,7 +582,12 @@ export function useCloudBackupNow() {
       return result.createdTime;
     },
     onSuccess: (createdTime) => {
-      writeCloudBackupState({ connected: true, lastBackupAt: createdTime });
+      const previous = readCloudBackupState();
+      writeCloudBackupState({
+        connected: true,
+        lastBackupAt: createdTime,
+        email: previous.email ?? null,
+      });
       queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
       toast({ title: "Cloud backup complete", description: "Backup saved to Google Drive." });
     },
@@ -615,6 +624,7 @@ export function useCloudRestoreLatest() {
       writeCloudBackupState({
         connected: true,
         lastBackupAt: previous.lastBackupAt ?? result.restoredAt,
+        email: previous.email ?? null,
       });
       queryClient.invalidateQueries();
       toast({
