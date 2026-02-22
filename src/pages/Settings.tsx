@@ -130,122 +130,128 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Cloud backup</h2>
-        <p className="text-sm text-muted-foreground">
-          Backup your app data to Google Drive (app private storage).
-        </p>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm">
-              <p className="font-medium">
-                Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {cloudStatus.data?.lastBackupAt
-                  ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
-                  : "No cloud backup yet."}
-              </p>
-              {cloudStatus.data?.connected && cloudStatus.data?.email && (
-                <p className="text-xs text-muted-foreground">
-                  Account: {cloudStatus.data.email}
+      <div className="space-y-5">
+        <h2 className="text-lg font-semibold">Data management</h2>
+
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold">Cloud backup</h3>
+          <p className="text-sm text-muted-foreground">
+            Backup your app data to Google Drive.
+          </p>
+          <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm">
+                <p className="font-medium">
+                  Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
                 </p>
-              )}
-            </div>
-            {cloudStatus.data?.connected ? (
-              <Button
-                variant="outline"
-                className="rounded-2xl"
-                onClick={() => cloudDisconnect.mutate()}
-                disabled={cloudDisconnect.isPending}
-              >
-                <Unlink2 className="mr-2 h-4 w-4" /> Disconnect
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                className="rounded-2xl"
-                onClick={() => cloudConnect.mutate()}
-                disabled={cloudConnect.isPending}
-              >
-                <Link2 className="mr-2 h-4 w-4" /> Connect Google
-              </Button>
-            )}
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Button
-              className="rounded-2xl"
-              onClick={() => cloudBackupNow.mutate()}
-              disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
-            >
-              <Cloud className="mr-2 h-4 w-4" /> Backup to Drive
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+                <p className="text-xs text-muted-foreground">
+                  {cloudStatus.data?.lastBackupAt
+                    ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
+                    : "No cloud backup yet."}
+                </p>
+                {cloudStatus.data?.connected && cloudStatus.data?.email && (
+                  <p className="text-xs text-muted-foreground">
+                    Account: {cloudStatus.data.email}
+                  </p>
+                )}
+              </div>
+              {cloudStatus.data?.connected ? (
                 <Button
                   variant="outline"
                   className="rounded-2xl"
-                  disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
+                  onClick={() => cloudDisconnect.mutate()}
+                  disabled={cloudDisconnect.isPending}
                 >
-                  <Download className="mr-2 h-4 w-4" /> Restore latest
+                  <Unlink2 className="mr-2 h-4 w-4" /> Disconnect
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="rounded-2xl"
+                  onClick={() => cloudConnect.mutate()}
+                  disabled={cloudConnect.isPending}
+                >
+                  <Link2 className="mr-2 h-4 w-4" /> Connect Google
+                </Button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Button
+                className="rounded-2xl"
+                onClick={() => cloudBackupNow.mutate()}
+                disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
+              >
+                <Cloud className="mr-2 h-4 w-4" /> Backup now
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="rounded-2xl"
+                    disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Restore data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace your current local data with the latest backup from Google Drive.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
+                      Restore
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border/60" />
+
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold">Local backup</h3>
+          <p className="text-sm text-muted-foreground">
+            Export/import backup files on this device. Importing data will replace your current data.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" onClick={exportData} className="flex-1 rounded-2xl">
+              <Download className="mr-2 h-4 w-4" /> Export data
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="flex-1 rounded-2xl">
+                  <Upload className="mr-2 h-4 w-4" /> Import data
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent className="rounded-3xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
+                  <AlertDialogTitle>Replace existing data?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will replace your current local data with the latest backup from Google Drive.
+                    Importing a backup will remove your current data. Make sure you have exported a backup if needed.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
-                    Restore
+                  <AlertDialogAction onClick={() => fileRef.current?.click()}>
+                    Continue
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Data management</h2>
-        <p className="text-sm text-muted-foreground">
-          Importing data will remove your current data and replace it with the imported file.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button variant="outline" onClick={exportData} className="flex-1 rounded-2xl">
-            <Download className="mr-2 h-4 w-4" /> Export data
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="flex-1 rounded-2xl">
-                <Upload className="mr-2 h-4 w-4" /> Import data
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="rounded-3xl">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Replace existing data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Importing a backup will remove your current data. Make sure you have exported a backup if needed.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => fileRef.current?.click()}>
-                  Continue
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={handleFileChange}
-          />
         </div>
       </div>
 
