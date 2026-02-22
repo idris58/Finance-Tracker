@@ -24,7 +24,16 @@ const readCloudBackupState = (): CloudBackupState => {
   try {
     const raw = localStorage.getItem(CLOUD_BACKUP_STATE_KEY);
     if (!raw) return { connected: false };
-    const parsed = JSON.parse(raw) as CloudBackupState;
+    const parsed = JSON.parse(raw) as CloudBackupState | boolean | string | null;
+    if (typeof parsed === "boolean") {
+      return { connected: parsed };
+    }
+    if (typeof parsed === "string") {
+      return { connected: parsed === "true" };
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return { connected: false };
+    }
     return {
       connected: !!parsed.connected,
       lastBackupAt: parsed.lastBackupAt,
@@ -494,6 +503,7 @@ export function useImportData() {
 }
 
 export function useCloudBackupStatus() {
+  const initial = readCloudBackupState();
   return useQuery({
     queryKey: ["cloud-backup-status"],
     queryFn: async () => {
@@ -504,9 +514,10 @@ export function useCloudBackupStatus() {
       };
     },
     initialData: {
-      connected: false,
-      lastBackupAt: null,
+      connected: initial.connected,
+      lastBackupAt: initial.lastBackupAt ?? null,
     },
+    staleTime: Infinity,
   });
 }
 
