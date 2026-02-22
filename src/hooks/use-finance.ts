@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, isCloudDriveConnected, uploadBackupToCloud } from "@/lib/cloud-drive";
 import type { 
   InsertTransaction, 
   InsertAccount,
@@ -12,6 +13,30 @@ import type {
   Transfer,
   DashboardStatsResponse
 } from "@shared/schema";
+
+const CLOUD_BACKUP_STATE_KEY = "cloudBackupState";
+type CloudBackupState = {
+  connected: boolean;
+  lastBackupAt?: string;
+};
+
+const readCloudBackupState = (): CloudBackupState => {
+  try {
+    const raw = localStorage.getItem(CLOUD_BACKUP_STATE_KEY);
+    if (!raw) return { connected: false };
+    const parsed = JSON.parse(raw) as CloudBackupState;
+    return {
+      connected: !!parsed.connected,
+      lastBackupAt: parsed.lastBackupAt,
+    };
+  } catch {
+    return { connected: false };
+  }
+};
+
+const writeCloudBackupState = (next: CloudBackupState) => {
+  localStorage.setItem(CLOUD_BACKUP_STATE_KEY, JSON.stringify(next));
+};
 
 // --- Settings ---
 export function useSettings() {
@@ -462,6 +487,134 @@ export function useImportData() {
       toast({
         title: "Import failed",
         description: error?.message || "Could not import data.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useCloudBackupStatus() {
+  return useQuery({
+    queryKey: ["cloud-backup-status"],
+    queryFn: async () => {
+      const saved = readCloudBackupState();
+      return {
+        connected: saved.connected && isCloudDriveConnected(),
+        lastBackupAt: saved.lastBackupAt ?? null,
+      };
+    },
+    initialData: {
+      connected: false,
+      lastBackupAt: null,
+    },
+  });
+}
+
+export function useCloudConnect() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      await connectCloudDrive();
+    },
+    onSuccess: () => {
+      const previous = readCloudBackupState();
+      writeCloudBackupState({ ...previous, connected: true });
+      queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
+      toast({ title: "Google Drive connected", description: "Cloud backup is ready to use." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Google sign-in failed",
+        description: error?.message || "Could not connect to Google Drive.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useCloudDisconnect() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      disconnectCloudDrive();
+    },
+    onSuccess: () => {
+      const previous = readCloudBackupState();
+      writeCloudBackupState({ ...previous, connected: false });
+      queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
+      toast({ title: "Disconnected", description: "Google Drive cloud backup has been disconnected." });
+    },
+  });
+}
+
+export function useCloudBackupNow() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const settings = await storage.getSettings();
+      const categories = await storage.getCategories();
+      const transactions = await storage.getTransactions();
+      const accounts = await storage.getAccounts();
+      const transfers = await storage.getTransfers();
+      const payload = { settings, categories, transactions, accounts, transfers };
+      const result = await uploadBackupToCloud(payload);
+      return result.createdTime;
+    },
+    onSuccess: (createdTime) => {
+      writeCloudBackupState({ connected: true, lastBackupAt: createdTime });
+      queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
+      toast({ title: "Cloud backup complete", description: "Backup saved to Google Drive." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cloud backup failed",
+        description: error?.message || "Could not upload backup to Google Drive.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useCloudRestoreLatest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result = await downloadLatestBackupFromCloud();
+      const { errors, clean } = validateImportData(result.data as any);
+      if (errors.length > 0 || !clean) {
+        throw new Error(errors.slice(0, 5).join(" ") || "Cloud backup file is invalid.");
+      }
+      await storage.resetAllData();
+      await storage.importData(clean as any);
+      return {
+        count: clean.transactions?.length || 0,
+        restoredAt: result.file.createdTime,
+      };
+    },
+    onSuccess: (result) => {
+      const previous = readCloudBackupState();
+      writeCloudBackupState({
+        connected: true,
+        lastBackupAt: previous.lastBackupAt ?? result.restoredAt,
+      });
+      queryClient.invalidateQueries();
+      toast({
+        title: "Cloud restore complete",
+        description: `Imported ${result.count} transactions from latest backup.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cloud restore failed",
+        description: error?.message || "Could not restore from Google Drive.",
         variant: "destructive",
       });
     },

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Download, Moon, Smartphone, Sun, Upload } from "lucide-react";
+import { Cloud, Download, Link2, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useExportData, useImportData, useSettings, useUpdateSettings } from "@/hooks/use-finance";
+import { useCloudBackupNow, useCloudBackupStatus, useCloudConnect, useCloudDisconnect, useCloudRestoreLatest, useExportData, useImportData, useSettings, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,11 @@ export default function SettingsPage() {
   const updateSettings = useUpdateSettings();
   const exportData = useExportData();
   const importData = useImportData();
+  const cloudStatus = useCloudBackupStatus();
+  const cloudConnect = useCloudConnect();
+  const cloudDisconnect = useCloudDisconnect();
+  const cloudBackupNow = useCloudBackupNow();
+  const cloudRestoreLatest = useCloudRestoreLatest();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
@@ -122,6 +127,80 @@ export default function SettingsPage() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Cloud backup</h2>
+        <p className="text-sm text-muted-foreground">
+          Backup your app data to Google Drive (app private storage).
+        </p>
+        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm">
+              <p className="font-medium">
+                Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {cloudStatus.data?.lastBackupAt
+                  ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
+                  : "No cloud backup yet."}
+              </p>
+            </div>
+            {cloudStatus.data?.connected ? (
+              <Button
+                variant="outline"
+                className="rounded-2xl"
+                onClick={() => cloudDisconnect.mutate()}
+                disabled={cloudDisconnect.isPending}
+              >
+                <Unlink2 className="mr-2 h-4 w-4" /> Disconnect
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="rounded-2xl"
+                onClick={() => cloudConnect.mutate()}
+                disabled={cloudConnect.isPending}
+              >
+                <Link2 className="mr-2 h-4 w-4" /> Connect Google
+              </Button>
+            )}
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Button
+              className="rounded-2xl"
+              onClick={() => cloudBackupNow.mutate()}
+              disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
+            >
+              <Cloud className="mr-2 h-4 w-4" /> Backup to Drive
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl"
+                  disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
+                >
+                  <Download className="mr-2 h-4 w-4" /> Restore latest
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-3xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will replace your current local data with the latest backup from Google Drive.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
+                    Restore
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
 
