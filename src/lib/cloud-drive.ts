@@ -133,7 +133,11 @@ const getValidToken = async () => {
   if (accessToken && Date.now() < tokenExpiresAt) {
     return accessToken;
   }
-  return requestAccessToken("consent");
+  try {
+    return await requestAccessToken("");
+  } catch {
+    return requestAccessToken("consent");
+  }
 };
 
 const driveFetch = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
@@ -247,4 +251,3 @@ export const downloadLatestBackupFromCloud = async () => {
   const data = await response.json();
   return { data, file: latest };
 };
-

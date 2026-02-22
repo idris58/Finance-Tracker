@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, isCloudDriveConnected, uploadBackupToCloud } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, uploadBackupToCloud } from "@/lib/cloud-drive";
 import type { 
   InsertTransaction, 
   InsertAccount,
@@ -499,7 +499,7 @@ export function useCloudBackupStatus() {
     queryFn: async () => {
       const saved = readCloudBackupState();
       return {
-        connected: saved.connected && isCloudDriveConnected(),
+        connected: saved.connected,
         lastBackupAt: saved.lastBackupAt ?? null,
       };
     },
