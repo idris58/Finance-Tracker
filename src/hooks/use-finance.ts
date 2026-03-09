@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, uploadBackupToCloud } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, setCloudAccountHint, uploadBackupToCloud } from "@/lib/cloud-drive";
 import type { 
   InsertTransaction, 
   InsertAccount,
@@ -506,6 +506,7 @@ export function useImportData() {
 
 export function useCloudBackupStatus() {
   const initial = readCloudBackupState();
+  setCloudAccountHint(initial.email ?? null);
   return useQuery({
     queryKey: ["cloud-backup-status"],
     queryFn: async () => {
@@ -535,6 +536,7 @@ export function useCloudConnect() {
     },
     onSuccess: (result) => {
       const previous = readCloudBackupState();
+      setCloudAccountHint(result.email ?? null);
       writeCloudBackupState({ ...previous, connected: true, email: result.email ?? null });
       queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
       toast({ title: "Google Drive connected", description: "Cloud backup is ready to use." });
@@ -559,6 +561,7 @@ export function useCloudDisconnect() {
     },
     onSuccess: () => {
       const previous = readCloudBackupState();
+      setCloudAccountHint(null);
       writeCloudBackupState({ ...previous, connected: false, email: null });
       queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
       toast({ title: "Disconnected", description: "Google Drive cloud backup has been disconnected." });
@@ -583,6 +586,7 @@ export function useCloudBackupNow() {
     },
     onSuccess: (createdTime) => {
       const previous = readCloudBackupState();
+      setCloudAccountHint(previous.email ?? null);
       writeCloudBackupState({
         connected: true,
         lastBackupAt: createdTime,
@@ -621,6 +625,7 @@ export function useCloudRestoreLatest() {
     },
     onSuccess: (result) => {
       const previous = readCloudBackupState();
+      setCloudAccountHint(previous.email ?? null);
       writeCloudBackupState({
         connected: true,
         lastBackupAt: previous.lastBackupAt ?? result.restoredAt,

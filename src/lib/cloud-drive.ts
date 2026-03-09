@@ -19,6 +19,7 @@ type GoogleOauth2 = {
   initTokenClient: (options: {
     client_id: string;
     scope: string;
+    hint?: string;
     callback: (response: GoogleTokenResponse) => void;
   }) => GoogleTokenClient;
 };
@@ -43,6 +44,7 @@ let gisLoader: Promise<void> | null = null;
 let tokenClient: GoogleTokenClient | null = null;
 let accessToken: string | null = null;
 let tokenExpiresAt = 0;
+let accountHint: string | null = null;
 
 const getClientId = () => import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
@@ -88,6 +90,7 @@ const ensureTokenClient = async () => {
     tokenClient = oauth2.initTokenClient({
       client_id: clientId,
       scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
+      hint: accountHint || undefined,
       callback: () => {
         // callback is replaced per-request in requestAccessToken.
       },
@@ -115,6 +118,7 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
     const oneShotClient = oauth2.initTokenClient({
       client_id: clientId,
       scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
+      hint: accountHint || undefined,
       callback: (response: GoogleTokenResponse) => {
         if (response.error || !response.access_token) {
           reject(new Error(response.error_description || response.error || "Google sign-in failed."));
@@ -187,15 +191,21 @@ const enforceRetention = async () => {
 export const connectCloudDrive = async () => {
   await requestAccessToken("consent");
   const email = await getCloudAccountEmail();
+  accountHint = email;
   return { connected: true, email };
 };
 
 export const disconnectCloudDrive = () => {
   accessToken = null;
   tokenExpiresAt = 0;
+  accountHint = null;
 };
 
 export const isCloudDriveConnected = () => !!accessToken && Date.now() < tokenExpiresAt;
+
+export const setCloudAccountHint = (email: string | null) => {
+  accountHint = email;
+};
 
 export const getCloudAccountEmail = async (): Promise<string | null> => {
   const token = await getValidToken();
