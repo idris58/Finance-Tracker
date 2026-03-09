@@ -8,6 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform?: string }>;
+};
+
 const currencies = [
   { symbol: "৳", label: "BDT (৳)" },
   { symbol: "$", label: "USD ($)" },
@@ -28,12 +33,12 @@ export default function SettingsPage() {
   const cloudBackupNow = useCloudBackupNow();
   const cloudRestoreLatest = useCloudRestoreLatest();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
     const updateFromWindow = () => {
-      const deferred = (window as any).deferredInstallPrompt;
+      const deferred = (window as Window & { deferredInstallPrompt?: BeforeInstallPromptEvent }).deferredInstallPrompt;
       if (deferred) {
         setInstallPrompt(deferred);
         setIsInstallable(true);
