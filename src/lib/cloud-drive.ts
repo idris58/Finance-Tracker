@@ -3,7 +3,6 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const PROFILE_SCOPES = "openid email";
 const BACKUP_PREFIX = "finance-backup-";
 const RETENTION_COUNT = 2;
-const CLOUD_TOKEN_KEY = "cloudDriveToken";
 
 type GoogleTokenResponse = {
   access_token?: string;
@@ -46,37 +45,6 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 
 const getClientId = () => import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-
-const readPersistedToken = () => {
-  try {
-    const raw = localStorage.getItem(CLOUD_TOKEN_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as { accessToken?: string; tokenExpiresAt?: number };
-    if (!parsed?.accessToken || !parsed?.tokenExpiresAt) return;
-    if (Date.now() >= parsed.tokenExpiresAt) {
-      localStorage.removeItem(CLOUD_TOKEN_KEY);
-      return;
-    }
-    accessToken = parsed.accessToken;
-    tokenExpiresAt = parsed.tokenExpiresAt;
-  } catch {
-    localStorage.removeItem(CLOUD_TOKEN_KEY);
-  }
-};
-
-const persistToken = () => {
-  if (!accessToken || !tokenExpiresAt || Date.now() >= tokenExpiresAt) {
-    localStorage.removeItem(CLOUD_TOKEN_KEY);
-    return;
-  }
-  localStorage.setItem(
-    CLOUD_TOKEN_KEY,
-    JSON.stringify({
-      accessToken,
-      tokenExpiresAt,
-    })
-  );
-};
 
 const ensureGisLoaded = async () => {
   const googleWindow = window as GoogleWindow;
@@ -154,7 +122,6 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
         }
         accessToken = response.access_token;
         tokenExpiresAt = Date.now() + ((response.expires_in ?? 3600) - 30) * 1000;
-        persistToken();
         resolve(response.access_token);
       },
     });
@@ -164,9 +131,6 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
 };
 
 const getValidToken = async () => {
-  if (!accessToken) {
-    readPersistedToken();
-  }
   if (accessToken && Date.now() < tokenExpiresAt) {
     return accessToken;
   }
@@ -229,7 +193,6 @@ export const connectCloudDrive = async () => {
 export const disconnectCloudDrive = () => {
   accessToken = null;
   tokenExpiresAt = 0;
-  localStorage.removeItem(CLOUD_TOKEN_KEY);
 };
 
 export const isCloudDriveConnected = () => !!accessToken && Date.now() < tokenExpiresAt;
@@ -249,13 +212,14 @@ export const getCloudAccountEmail = async (): Promise<string | null> => {
 };
 
 export const uploadBackupToCloud = async (backup: unknown) => {
+  const now = new Date().toISOString();
   const metadata = {
-    name: `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+    name: `${BACKUP_PREFIX}${now.replace(/[:.]/g, "-")}.json`,
     mimeType: "application/json",
     parents: ["appDataFolder"],
     appProperties: {
       source: "finance-tracker",
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     },
   };
 
