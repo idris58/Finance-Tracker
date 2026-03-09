@@ -92,7 +92,7 @@ export default function SettingsPage() {
               "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
               theme === "light"
                 ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-foreground/80 hover:text-foreground"
             )}
           >
             <Sun className="h-4 w-4" /> Light
@@ -103,7 +103,7 @@ export default function SettingsPage() {
               "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
               theme === "dark"
                 ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-foreground/80 hover:text-foreground"
             )}
           >
             <Moon className="h-4 w-4" /> Dark
@@ -114,7 +114,7 @@ export default function SettingsPage() {
               "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
               theme === "system"
                 ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-foreground/80 hover:text-foreground"
             )}
           >
             <Monitor className="h-4 w-4" /> System
