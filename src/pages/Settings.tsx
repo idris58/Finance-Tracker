@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Cloud, Download, Link2, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
+import { Cloud, Download, Link2, Monitor, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCloudBackupNow, useCloudBackupStatus, useCloudConnect, useCloudDisconnect, useCloudRestoreLatest, useExportData, useImportData, useSettings, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -80,12 +80,14 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Appearance</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
           <button
             onClick={() => setTheme("light")}
             className={cn(
-              "flex flex-col items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium",
-              theme === "light" ? "border-primary/50 bg-primary text-primary-foreground" : "border-border/60 bg-card/70"
+              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+              theme === "light"
+                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Sun className="h-4 w-4" /> Light
@@ -93,8 +95,10 @@ export default function SettingsPage() {
           <button
             onClick={() => setTheme("dark")}
             className={cn(
-              "flex flex-col items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium",
-              theme === "dark" ? "border-primary/50 bg-primary text-primary-foreground" : "border-border/60 bg-card/70"
+              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+              theme === "dark"
+                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Moon className="h-4 w-4" /> Dark
@@ -102,11 +106,13 @@ export default function SettingsPage() {
           <button
             onClick={() => setTheme("system")}
             className={cn(
-              "flex flex-col items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium",
-              theme === "system" ? "border-primary/50 bg-primary text-primary-foreground" : "border-border/60 bg-card/70"
+              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+              theme === "system"
+                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
-            System
+            <Monitor className="h-4 w-4" /> System
           </button>
         </div>
       </div>
