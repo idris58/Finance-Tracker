@@ -229,7 +229,7 @@ export default function StatisticsPage() {
 
               {yearSummary.table.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
-                  <div className="divide-y divide-border/60 md:hidden">
+                  <div className="divide-y divide-border/60 md:hidden max-h-[40vh] overflow-y-auto">
                     {yearSummary.table.map((row) => (
                       <div key={row.month} className="space-y-2 px-3 py-3 text-sm">
                         <div className="font-semibold">
