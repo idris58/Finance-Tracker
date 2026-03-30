@@ -54,7 +54,6 @@ export class LocalStorage implements IStorage {
     if (!existing) {
       const defaultSettings: Omit<Settings, 'id'> = {
         currencySymbol: '৳',
-        isSetupComplete: false,
         updatedAt: new Date(),
       };
       const id = await db.settings.add(defaultSettings);
@@ -63,7 +62,6 @@ export class LocalStorage implements IStorage {
     return {
       id: existing.id,
       currencySymbol: existing.currencySymbol ?? '৳',
-      isSetupComplete: existing.isSetupComplete ?? false,
       updatedAt: existing.updatedAt instanceof Date ? existing.updatedAt : (existing.updatedAt ? new Date(existing.updatedAt as any) : undefined),
     };
   }
@@ -430,7 +428,6 @@ export class LocalStorage implements IStorage {
     if (data.settings) {
       await this.updateSettings({
         currencySymbol: data.settings.currencySymbol,
-        isSetupComplete: data.settings.isSetupComplete !== undefined ? data.settings.isSetupComplete : true,
       });
     }
 

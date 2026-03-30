@@ -310,10 +310,6 @@ const validateImportData = (data: any) => {
   if (settings.currencySymbol && typeof settings.currencySymbol !== 'string') {
     errors.push('Settings.currencySymbol must be a string.');
   }
-  if (settings.isSetupComplete !== undefined && typeof settings.isSetupComplete !== 'boolean') {
-    errors.push('Settings.isSetupComplete must be true/false.');
-  }
-
   if (!Array.isArray(data.categories)) {
     errors.push('Categories must be an array.');
   }
@@ -432,7 +428,6 @@ const validateImportData = (data: any) => {
     settings: {
       id: settings.id,
       currencySymbol: typeof settings.currencySymbol === 'string' ? settings.currencySymbol : '?',
-      isSetupComplete: settings.isSetupComplete ?? true,
       updatedAt: settings.updatedAt,
     },
     categories: cleanCategories,

@@ -4,7 +4,6 @@ import { z } from "zod";
 
 export const insertSettingsSchema = z.object({
   currencySymbol: z.string().default("\u09f3"),
-  isSetupComplete: z.boolean().default(false),
 });
 
 export const transactionTypeSchema = z.enum(["expense", "income", "loan"]);
@@ -44,7 +43,6 @@ export const insertAccountSchema = z.object({
 export interface Settings {
   id?: number;
   currencySymbol: string;
-  isSetupComplete: boolean;
   updatedAt?: Date;
 }
 

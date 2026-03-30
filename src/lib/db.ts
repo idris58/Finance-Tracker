@@ -4,7 +4,6 @@
 export interface Settings {
   id?: number;
   currencySymbol: string;
-  isSetupComplete: boolean;
   updatedAt?: Date;
 }
 
@@ -64,20 +63,10 @@ class FinanceDatabase extends Dexie {
       transactions: '++id, date, categoryId',
     });
 
-    // Migration: Ensure isSetupComplete exists on settings
     this.version(2).stores({
       settings: '++id',
       categories: '++id, name',
       transactions: '++id, date, categoryId',
-    }).upgrade(async (tx) => {
-      const allSettings = await tx.table('settings').toCollection().toArray();
-      for (const setting of allSettings) {
-        if (!('isSetupComplete' in setting)) {
-          await tx.table('settings').update(setting.id, {
-            isSetupComplete: false,
-          });
-        }
-      }
     });
 
     // Migration: Add accounts table and ensure a default Cash account exists
@@ -183,20 +172,12 @@ export const db = new FinanceDatabase();
 // Initialize default settings if none exist
 export async function initializeDatabase() {
   const settingsCount = await db.settings.count();
-  if (settingsCount === 0) {
-    await db.settings.add({
-      currencySymbol: '৳',
-      isSetupComplete: false,
-      updatedAt: new Date(),
-    });
-  } else {
-    const existing = await db.settings.orderBy('id').first();
-    if (existing && !('isSetupComplete' in existing)) {
-      await db.settings.update(existing.id!, {
-        isSetupComplete: existing.isSetupComplete !== undefined ? existing.isSetupComplete : false,
+    if (settingsCount === 0) {
+      await db.settings.add({
+        currencySymbol: '৳',
+        updatedAt: new Date(),
       });
     }
-  }
 
   const categoriesCount = await db.categories.count();
   if (categoriesCount === 0) {
