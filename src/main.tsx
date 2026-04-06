@@ -2,16 +2,11 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { initializeDatabase } from "./lib/db";
-
-declare global {
-  interface Window {
-    deferredInstallPrompt?: Event;
-  }
-}
+import type { BeforeInstallPromptEvent } from "./lib/pwa";
 
 const handleBeforeInstallPrompt = (event: Event) => {
   event.preventDefault();
-  window.deferredInstallPrompt = event;
+  window.deferredInstallPrompt = event as BeforeInstallPromptEvent;
   window.dispatchEvent(new Event("app-installable"));
 };
 

@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Cloud, Download, Link2, Monitor, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { CheckCircle2, Cloud, Download, Link2, Monitor, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCloudBackupNow, useCloudBackupStatus, useCloudConnect, useCloudDisconnect, useCloudRestoreLatest, useExportData, useImportData, useSettings, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePwaInstall } from "@/lib/pwa";
 import { cn } from "@/lib/utils";
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform?: string }>;
-};
 
 const currencies = [
   { symbol: "৳", label: "BDT (৳)" },
@@ -33,39 +29,12 @@ export default function SettingsPage() {
   const cloudBackupNow = useCloudBackupNow();
   const cloudRestoreLatest = useCloudRestoreLatest();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-
-  useEffect(() => {
-    const updateFromWindow = () => {
-      const deferred = (window as Window & { deferredInstallPrompt?: BeforeInstallPromptEvent }).deferredInstallPrompt;
-      if (deferred) {
-        setInstallPrompt(deferred);
-        setIsInstallable(true);
-      }
-    };
-
-    const handler = () => updateFromWindow();
-    const installedHandler = () => {
-      setInstallPrompt(null);
-      setIsInstallable(false);
-    };
-
-    updateFromWindow();
-    window.addEventListener("app-installable", handler);
-    window.addEventListener("app-installed", installedHandler);
-    return () => {
-      window.removeEventListener("app-installable", handler);
-      window.removeEventListener("app-installed", installedHandler);
-    };
-  }, []);
+  const { isInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
+  const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
 
   const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-    setIsInstallable(false);
+    const outcome = await promptInstall();
+    setInstallFeedback(outcome);
   };
 
   const handleCurrencyChange = (value: string) => {
@@ -271,14 +240,57 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">
           Install the app for faster access and offline usage.
         </p>
-        <Button
-          onClick={handleInstall}
-          className="w-full rounded-2xl"
-          disabled={!isInstallable}
-        >
-          <Smartphone className="mr-2 h-4 w-4" />
-          {isInstallable ? "Install app" : "Install not available"}
-        </Button>
+        <div className="space-y-3 rounded-2xl border border-border/60 bg-card/70 p-4">
+          {isInstalled ? (
+            <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
+              <div>
+                <p className="font-medium text-foreground">App already installed</p>
+                <p className="text-muted-foreground">Open it from your home screen for the best app-like experience.</p>
+              </div>
+            </div>
+          ) : isIos ? (
+            <div className="space-y-3 rounded-2xl border border-border/60 bg-background/50 p-4 text-sm">
+              <div className="flex items-start gap-3">
+                <Smartphone className="mt-0.5 h-4 w-4 text-primary" />
+                <div>
+                  <p className="font-medium text-foreground">Install on iPhone or iPad</p>
+                  <p className="text-muted-foreground">Safari does not show a direct install prompt for PWAs.</p>
+                </div>
+              </div>
+              <p className="text-muted-foreground">
+                Open this site in Safari, tap the Share button, then choose <span className="font-medium text-foreground">Add to Home Screen</span>.
+              </p>
+            </div>
+          ) : canInstall ? (
+            <>
+              <Button onClick={handleInstall} className="w-full rounded-2xl">
+                <Smartphone className="mr-2 h-4 w-4" />
+                Install app
+              </Button>
+              {installFeedback === "accepted" && (
+                <p className="text-sm text-emerald-500">Install prompt accepted.</p>
+              )}
+              {installFeedback === "dismissed" && (
+                <p className="text-sm text-muted-foreground">Install prompt dismissed. You can try again later.</p>
+              )}
+            </>
+          ) : (
+            <div className="space-y-2 rounded-2xl border border-border/60 bg-background/50 p-4 text-sm">
+              <p className="font-medium text-foreground">
+                {isSupported ? "Install prompt not ready yet" : "Install is not supported here"}
+              </p>
+              <p className="text-muted-foreground">
+                {isSupported
+                  ? "Use the app for a bit longer in a supported browser and the install prompt should become available."
+                  : "Try Chrome or Edge on Android or desktop to get the install prompt."}
+              </p>
+              {installFeedback === "unavailable" && (
+                <p className="text-sm text-muted-foreground">No browser install prompt is available right now.</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
