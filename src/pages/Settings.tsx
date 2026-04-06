@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const cloudBackupNow = useCloudBackupNow();
   const cloudRestoreLatest = useCloudRestoreLatest();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const { isInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
+  const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
   const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
 
   const handleInstall = async () => {
@@ -241,12 +241,16 @@ export default function SettingsPage() {
           Install the app for faster access and offline usage.
         </p>
         <div className="space-y-3 rounded-2xl border border-border/60 bg-card/70 p-4">
-          {isInstalled ? (
+          {isKnownInstalled ? (
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm">
               <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
               <div>
                 <p className="font-medium text-foreground">App already installed</p>
-                <p className="text-muted-foreground">Open it from your home screen for the best app-like experience.</p>
+                <p className="text-muted-foreground">
+                  {isInstalled
+                    ? "Open it from your home screen for the best app-like experience."
+                    : "This device already has the installed app. Open it from your home screen or app list."}
+                </p>
               </div>
             </div>
           ) : isIos ? (
