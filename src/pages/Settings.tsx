@@ -54,183 +54,190 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Appearance</h2>
-        <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
-          <button
-            onClick={() => setTheme("light")}
-            className={cn(
-              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-              theme === "light"
-                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-foreground/80 hover:text-foreground"
-            )}
-          >
-            <Sun className="h-4 w-4" /> Light
-          </button>
-          <button
-            onClick={() => setTheme("dark")}
-            className={cn(
-              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-              theme === "dark"
-                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-foreground/80 hover:text-foreground"
-            )}
-          >
-            <Moon className="h-4 w-4" /> Dark
-          </button>
-          <button
-            onClick={() => setTheme("system")}
-            className={cn(
-              "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-              theme === "system"
-                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                : "text-foreground/80 hover:text-foreground"
-            )}
-          >
-            <Monitor className="h-4 w-4" /> System
-          </button>
+        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+          <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
+            <button
+              onClick={() => setTheme("light")}
+              className={cn(
+                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                theme === "light"
+                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                  : "text-foreground/80 hover:text-foreground"
+              )}
+            >
+              <Sun className="h-4 w-4" /> Light
+            </button>
+            <button
+              onClick={() => setTheme("dark")}
+              className={cn(
+                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                theme === "dark"
+                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                  : "text-foreground/80 hover:text-foreground"
+              )}
+            >
+              <Moon className="h-4 w-4" /> Dark
+            </button>
+            <button
+              onClick={() => setTheme("system")}
+              className={cn(
+                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                theme === "system"
+                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                  : "text-foreground/80 hover:text-foreground"
+              )}
+            >
+              <Monitor className="h-4 w-4" /> System
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Currency</h2>
-        <div className="space-y-2">
-          <Label>Default currency</Label>
-          <Select value={settings?.currencySymbol} onValueChange={handleCurrencyChange}>
-            <SelectTrigger className="w-full rounded-2xl border-border/60 bg-card/70">
-              <SelectValue placeholder="Choose currency" />
-            </SelectTrigger>
-            <SelectContent>
-              {currencies.map((currency) => (
-                <SelectItem key={currency.symbol} value={currency.symbol}>
-                  {currency.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+          <div className="space-y-2">
+            <Label>Default currency</Label>
+            <Select value={settings?.currencySymbol} onValueChange={handleCurrencyChange}>
+              <SelectTrigger className="w-full rounded-2xl border-border/60 bg-card/70">
+                <SelectValue placeholder="Choose currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.symbol} value={currency.symbol}>
+                    {currency.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
       <div className="space-y-5">
         <h2 className="text-lg font-semibold">Data management</h2>
-
-        <div className="space-y-3">
-          <h3 className="text-base font-semibold">Cloud backup</h3>
-          <p className="text-sm text-muted-foreground">
-            Backup your app data to Google Drive.
-          </p>
-          <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm">
-                <p className="font-medium">
-                  Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {cloudStatus.data?.lastBackupAt
-                    ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
-                    : "No cloud backup yet."}
-                </p>
-                {cloudStatus.data?.connected && cloudStatus.data?.email && (
-                  <p className="text-xs text-muted-foreground">
-                    Account: {cloudStatus.data.email}
+        <div className="space-y-5 rounded-2xl border border-border/60 bg-card/70 p-4">
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold">Cloud backup</h3>
+            <p className="text-sm text-muted-foreground">
+              Backup your app data to Google Drive.
+            </p>
+            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm">
+                  <p className="font-medium">
+                    Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
                   </p>
-                )}
-              </div>
-              {cloudStatus.data?.connected ? (
-                <Button
-                  variant="outline"
-                  className="rounded-2xl"
-                  onClick={() => cloudDisconnect.mutate()}
-                  disabled={cloudDisconnect.isPending}
-                >
-                  <Unlink2 className="mr-2 h-4 w-4" /> Disconnect
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="rounded-2xl"
-                  onClick={() => cloudConnect.mutate()}
-                  disabled={cloudConnect.isPending}
-                >
-                  <Link2 className="mr-2 h-4 w-4" /> Connect Google
-                </Button>
-              )}
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Button
-                className="rounded-2xl"
-                onClick={() => cloudBackupNow.mutate()}
-                disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
-              >
-                <Cloud className="mr-2 h-4 w-4" /> Backup now
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+                  <p className="text-xs text-muted-foreground">
+                    {cloudStatus.data?.lastBackupAt
+                      ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
+                      : "No cloud backup yet."}
+                  </p>
+                  {cloudStatus.data?.connected && cloudStatus.data?.email && (
+                    <p className="text-xs text-muted-foreground">
+                      Account: {cloudStatus.data.email}
+                    </p>
+                  )}
+                </div>
+                {cloudStatus.data?.connected ? (
                   <Button
                     variant="outline"
                     className="rounded-2xl"
-                    disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
+                    onClick={() => cloudDisconnect.mutate()}
+                    disabled={cloudDisconnect.isPending}
                   >
-                    <Download className="mr-2 h-4 w-4" /> Restore data
+                    <Unlink2 className="mr-2 h-4 w-4" /> Disconnect
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="rounded-3xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will replace your current local data with the latest backup from Google Drive.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
-                      Restore
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="rounded-2xl"
+                    onClick={() => cloudConnect.mutate()}
+                    disabled={cloudConnect.isPending}
+                  >
+                    <Link2 className="mr-2 h-4 w-4" /> Connect Google
+                  </Button>
+                )}
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Button
+                  className="rounded-2xl"
+                  onClick={() => cloudBackupNow.mutate()}
+                  disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
+                >
+                  <Cloud className="mr-2 h-4 w-4" /> Backup now
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="rounded-2xl"
+                      disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Restore data
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will replace your current local data with the latest backup from Google Drive.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
+                        Restore
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="border-t border-border/60" />
+          <div className="border-t border-border/60" />
 
-        <div className="space-y-3">
-          <h3 className="text-base font-semibold">Local backup</h3>
-          <p className="text-sm text-muted-foreground">
-            Export/import backup files on this device. Importing data will replace your current data.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button variant="outline" onClick={exportData} className="flex-1 rounded-2xl">
-              <Download className="mr-2 h-4 w-4" /> Export data
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="flex-1 rounded-2xl">
-                  <Upload className="mr-2 h-4 w-4" /> Import data
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold">Local backup</h3>
+            <p className="text-sm text-muted-foreground">
+              Export/import backup files on this device. Importing data will replace your current data.
+            </p>
+            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button variant="outline" onClick={exportData} className="flex-1 rounded-2xl">
+                  <Download className="mr-2 h-4 w-4" /> Export data
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-3xl">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Replace existing data?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Importing a backup will remove your current data. Make sure you have exported a backup if needed.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => fileRef.current?.click()}>
-                    Continue
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="flex-1 rounded-2xl">
+                      <Upload className="mr-2 h-4 w-4" /> Import data
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Replace existing data?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Importing a backup will remove your current data. Make sure you have exported a backup if needed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => fileRef.current?.click()}>
+                        Continue
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
