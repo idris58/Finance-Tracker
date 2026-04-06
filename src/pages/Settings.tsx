@@ -56,7 +56,7 @@ export default function SettingsPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Appearance</h2>
           <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-            <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
+            <div className="max-w-md rounded-2xl bg-card/80 p-1.5">
               <button
                 onClick={() => setTheme("light")}
                 className={cn(
@@ -97,8 +97,7 @@ export default function SettingsPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Currency</h2>
           <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-            <div className="space-y-2">
-              <Label>Default currency</Label>
+            <div className="rounded-2xl bg-card/80 p-1.5">
               <Select value={settings?.currencySymbol} onValueChange={handleCurrencyChange}>
                 <SelectTrigger className="w-full rounded-2xl border-border/60 bg-card/70">
                   <SelectValue placeholder="Choose currency" />
