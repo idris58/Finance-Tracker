@@ -52,64 +52,66 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Appearance</h2>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-          <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
-            <button
-              onClick={() => setTheme("light")}
-              className={cn(
-                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-                theme === "light"
-                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                  : "text-foreground/80 hover:text-foreground"
-              )}
-            >
-              <Sun className="h-4 w-4" /> Light
-            </button>
-            <button
-              onClick={() => setTheme("dark")}
-              className={cn(
-                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-                theme === "dark"
-                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                  : "text-foreground/80 hover:text-foreground"
-              )}
-            >
-              <Moon className="h-4 w-4" /> Dark
-            </button>
-            <button
-              onClick={() => setTheme("system")}
-              className={cn(
-                "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
-                theme === "system"
-                  ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
-                  : "text-foreground/80 hover:text-foreground"
-              )}
-            >
-              <Monitor className="h-4 w-4" /> System
-            </button>
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Appearance</h2>
+          <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+            <div className="max-w-md rounded-2xl border border-border/60 bg-card/80 p-1.5">
+              <button
+                onClick={() => setTheme("light")}
+                className={cn(
+                  "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                  theme === "light"
+                    ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                    : "text-foreground/80 hover:text-foreground"
+                )}
+              >
+                <Sun className="h-4 w-4" /> Light
+              </button>
+              <button
+                onClick={() => setTheme("dark")}
+                className={cn(
+                  "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                  theme === "dark"
+                    ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                    : "text-foreground/80 hover:text-foreground"
+                )}
+              >
+                <Moon className="h-4 w-4" /> Dark
+              </button>
+              <button
+                onClick={() => setTheme("system")}
+                className={cn(
+                  "inline-flex w-1/3 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+                  theme === "system"
+                    ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-16px_rgba(244,63,94,0.9)]"
+                    : "text-foreground/80 hover:text-foreground"
+                )}
+              >
+                <Monitor className="h-4 w-4" /> System
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Currency</h2>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-          <div className="space-y-2">
-            <Label>Default currency</Label>
-            <Select value={settings?.currencySymbol} onValueChange={handleCurrencyChange}>
-              <SelectTrigger className="w-full rounded-2xl border-border/60 bg-card/70">
-                <SelectValue placeholder="Choose currency" />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies.map((currency) => (
-                  <SelectItem key={currency.symbol} value={currency.symbol}>
-                    {currency.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Currency</h2>
+          <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+            <div className="space-y-2">
+              <Label>Default currency</Label>
+              <Select value={settings?.currencySymbol} onValueChange={handleCurrencyChange}>
+                <SelectTrigger className="w-full rounded-2xl border-border/60 bg-card/70">
+                  <SelectValue placeholder="Choose currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map((currency) => (
+                    <SelectItem key={currency.symbol} value={currency.symbol}>
+                      {currency.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
