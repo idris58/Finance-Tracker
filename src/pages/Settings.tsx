@@ -282,11 +282,11 @@ export default function SettingsPage() {
           ) : (
             <div className="space-y-2 rounded-2xl border border-border/60 bg-background/50 p-4 text-sm">
               <p className="font-medium text-foreground">
-                {isSupported ? "Install prompt not ready yet" : "Install is not supported here"}
+                {isSupported ? "Install prompt not available in this tab" : "Install is not supported here"}
               </p>
               <p className="text-muted-foreground">
                 {isSupported
-                  ? "Use the app for a bit longer in a supported browser and the install prompt should become available."
+                  ? "If the app is already installed on this device, open it from your home screen or app list. Otherwise, keep using the site in a supported browser until the browser offers the install prompt."
                   : "Try Chrome or Edge on Android or desktop to get the install prompt."}
               </p>
               {installFeedback === "unavailable" && (
