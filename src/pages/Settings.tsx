@@ -132,7 +132,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     {cloudStatus.data?.lastBackupAt
                       ? `Last backup: ${new Date(cloudStatus.data.lastBackupAt).toLocaleString()}`
-                      : "No cloud backup yet."}
+                      : "Stored only on this device until your first backup."}
                   </p>
                   {cloudStatus.data?.connected && cloudStatus.data?.email && (
                     <p className="text-xs text-muted-foreground">
@@ -294,7 +294,7 @@ export default function SettingsPage() {
               </p>
               <p className="text-muted-foreground">
                 {isSupported
-                  ? "If the app is already installed on this device, open it from your home screen or app list. Otherwise, keep using the site in a supported browser until the browser offers the install prompt."
+                  ? "If the app is already installed, open it from your home screen or app list. Otherwise, keep using this site until the browser offers install."
                   : "Try Chrome or Edge on Android or desktop to get the install prompt."}
               </p>
               {installFeedback === "unavailable" && (

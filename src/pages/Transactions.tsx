@@ -1,13 +1,15 @@
 ﻿import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Search, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useSettings, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
+import { EmptyState } from "@/components/EmptyState";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney } from "@/lib/money";
 
@@ -44,10 +46,14 @@ export default function TransactionsPage() {
   const { data: transactions, isLoading } = useTransactions({
     month: monthFilter === "all" ? undefined : monthFilter,
   });
+  const { data: allTransactions } = useTransactions();
+  const { data: accounts } = useAccounts();
   const { data: settings } = useSettings();
-  const { openEdit } = useTransactionEditor();
+  const { openEdit, openNew } = useTransactionEditor();
+  const [, setLocation] = useLocation();
 
   const currency = settings?.currencySymbol || "$";
+  const noAccounts = (accounts || []).length === 0;
 
   const availableTags = Array.from(new Set((transactions || []).flatMap((tx) => Array.isArray(tx.tags) ? tx.tags : []))).sort();
 
@@ -64,6 +70,43 @@ export default function TransactionsPage() {
 
     return matchesSearch && matchesFilter && matchesTag;
   });
+
+  const hasAnyTransactions = (allTransactions || []).length > 0;
+  const hasFilters = filter !== "all" || tagFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
+
+  const emptyState = (() => {
+    if (noAccounts) {
+      return {
+        title: "Add an account first",
+        hint: "Create an account before tracking transactions.",
+        primaryActionLabel: "Add account",
+        onPrimaryAction: () => setLocation("/accounts"),
+      };
+    }
+
+    if (hasAnyTransactions && hasFilters) {
+      return {
+        title: "No transactions match",
+        hint: "Try another month or clear filters.",
+        primaryActionLabel: "Clear filters",
+        onPrimaryAction: () => {
+          setSearchTerm("");
+          setFilter("all");
+          setTagFilter("all");
+          setMonthFilter("all");
+        },
+        secondaryActionLabel: "Add transaction",
+        onSecondaryAction: openNew,
+      };
+    }
+
+    return {
+      title: "No transactions yet",
+      hint: "Add your first transaction to start tracking.",
+      primaryActionLabel: "Add transaction",
+      onPrimaryAction: openNew,
+    };
+  })();
 
   return (
     <div className="space-y-6">
@@ -180,13 +223,11 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      <div className="space-y-3">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-        {!isLoading && filteredTx.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center text-sm text-muted-foreground">
-            No transactions found.
-          </div>
-        )}
+        <div className="space-y-3">
+          {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+          {!isLoading && filteredTx.length === 0 && (
+            <EmptyState {...emptyState} />
+          )}
         {filteredTx.map((tx) => {
           const entry = getCategoryIcon(tx.categoryName);
           const Icon = entry.icon;

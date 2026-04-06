@@ -22,6 +22,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
+import { EmptyState } from "@/components/EmptyState";
 
 const accountTypes = [
   { value: "Cash", label: "Cash", icon: Wallet },
@@ -296,7 +297,10 @@ export default function AccountsPage() {
                 </DialogHeader>
                 <div className="space-y-3">
                   {(transfers || []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No transfers yet.</p>
+                    <EmptyState
+                      title="No transfers yet"
+                      hint="Move money between accounts to see transfer history here."
+                    />
                   ) : (
                     (transfers || []).map((item) => (
                       <div key={item.id} className="rounded-2xl border border-border/60 bg-card/80 p-4">
@@ -463,15 +467,12 @@ export default function AccountsPage() {
 
       <div className="space-y-3">
         {(accounts || []).length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
-            <p className="text-sm text-muted-foreground">No accounts yet.</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Add Cash, Bank, or Mobile Wallet to track balances.
-            </p>
-            <Button onClick={() => setOpen(true)} className="mt-4 rounded-full px-6">
-              Add account
-            </Button>
-          </div>
+          <EmptyState
+            title="No accounts yet"
+            hint="Add Cash, Bank, or Mobile Wallet to start tracking balances."
+            primaryActionLabel="Add account"
+            onPrimaryAction={() => setOpen(true)}
+          />
         ) : (
           (accounts || []).map((account) => {
             const TypeIcon = accountTypes.find((type) => type.value === account.type)?.icon || CreditCard;

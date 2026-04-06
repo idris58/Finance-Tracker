@@ -1,12 +1,13 @@
 ﻿import { useMemo, useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
@@ -35,10 +36,13 @@ export default function HomePage() {
   const { data: settings } = useSettings();
   const { data: accounts } = useAccounts();
   const { data: transactions, isLoading } = useTransactions({ month: monthKey });
+  const { data: allTransactions } = useTransactions();
   const { openEdit, openNew } = useTransactionEditor();
+  const [, setLocation] = useLocation();
 
   const currency = settings?.currencySymbol || "$";
   const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
+  const noAccounts = (accounts || []).length === 0;
 
   const totals = useMemo(() => {
     const txs = transactions || [];
@@ -66,6 +70,43 @@ export default function HomePage() {
     });
     return groups;
   }, [filteredTransactions]);
+
+  const hasAnyTypeTransactions = useMemo(() => {
+    const txs = allTransactions || [];
+    if (activeType === "loan") {
+      return txs.some((tx) => tx.type === "loan");
+    }
+    return txs.some((tx) => (tx.type || "expense") === activeType);
+  }, [activeType, allTransactions]);
+
+  const emptyState = useMemo(() => {
+    if (noAccounts) {
+      return {
+        title: "Add an account first",
+        hint: "Create Cash, Bank, or Mobile Wallet before adding transactions.",
+        primaryActionLabel: "Add account",
+        onPrimaryAction: () => setLocation("/accounts"),
+      };
+    }
+
+    if (hasAnyTypeTransactions) {
+      return {
+        title: `No ${activeType === "loan" ? "loans" : `${activeType}s`} in ${format(monthDate, "MMMM yyyy")}`,
+        hint: "Try another month or add one now.",
+        primaryActionLabel: "Add transaction",
+        onPrimaryAction: openNew,
+        secondaryActionLabel: "View last month",
+        onSecondaryAction: () => setMonthDate(subMonths(monthDate, 1)),
+      };
+    }
+
+    return {
+      title: `No ${activeType === "loan" ? "loans" : activeType} yet`,
+      hint: `Add your first ${activeType === "loan" ? "loan" : activeType} to get started.`,
+      primaryActionLabel: "Add transaction",
+      onPrimaryAction: openNew,
+    };
+  }, [activeType, hasAnyTypeTransactions, monthDate, noAccounts, openNew, setLocation]);
 
   return (
     <div className="space-y-6">
@@ -197,19 +238,11 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading transactions...</p>}
-        {!isLoading && filteredTransactions.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
-            <p className="text-sm text-muted-foreground">No transactions yet for this month.</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Add your first {activeType === "loan" ? "loan" : activeType} to get started.
-            </p>
-            <Button onClick={openNew} className="mt-4 rounded-full px-6">
-              Add transaction
-            </Button>
-          </div>
-        )}
+        <div className="space-y-4">
+          {isLoading && <p className="text-sm text-muted-foreground">Loading transactions...</p>}
+          {!isLoading && filteredTransactions.length === 0 && (
+            <EmptyState {...emptyState} />
+          )}
 
         {!isLoading && filteredTransactions.length > 0 && (
           <div className="space-y-5">

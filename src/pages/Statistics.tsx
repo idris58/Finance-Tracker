@@ -2,12 +2,15 @@
 import { format, subMonths } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useLocation } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
+import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -67,9 +70,12 @@ export default function StatisticsPage() {
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions({ month: monthKey });
   const { data: allTransactions } = useTransactions();
+  const { openNew } = useTransactionEditor();
+  const [, setLocation] = useLocation();
 
   const currency = settings?.currencySymbol || "$";
   const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
+  const noAccounts = (accounts || []).length === 0;
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -175,6 +181,61 @@ export default function StatisticsPage() {
     );
   };
 
+  const hasAnyTypeTransactions = useMemo(() => {
+    const txs = allTransactions || [];
+    if (activeType === "loan") {
+      return txs.some((tx) => tx.type === "loan");
+    }
+    return txs.some((tx) => (tx.type || "expense") === activeType);
+  }, [activeType, allTransactions]);
+
+  const chartEmptyState = useMemo(() => {
+    if (noAccounts) {
+      return {
+        title: "Add an account first",
+        hint: "Create an account before viewing transaction insights.",
+        primaryActionLabel: "Add account",
+        onPrimaryAction: () => setLocation("/accounts"),
+      };
+    }
+
+    if (hasAnyTypeTransactions) {
+      return {
+        title: `No ${activeType === "loan" ? "loans" : `${activeType}s`} in ${format(monthDate, "MMMM yyyy")}`,
+        hint: "Try another month or add one now.",
+        primaryActionLabel: "Add transaction",
+        onPrimaryAction: openNew,
+        secondaryActionLabel: "View last month",
+        onSecondaryAction: () => setMonthDate(subMonths(monthDate, 1)),
+      };
+    }
+
+    return {
+      title: `No ${activeType === "loan" ? "loans" : activeType} yet`,
+      hint: "Add transactions to see charts and totals.",
+      primaryActionLabel: "Add transaction",
+      onPrimaryAction: openNew,
+    };
+  }, [activeType, hasAnyTypeTransactions, monthDate, noAccounts, openNew, setLocation]);
+
+  const yearlyEmptyState = useMemo(() => {
+    if (noAccounts) {
+      return {
+        title: "Add an account first",
+        hint: "Create an account to start building yearly balance history.",
+        primaryActionLabel: "Add account",
+        onPrimaryAction: () => setLocation("/accounts"),
+      };
+    }
+
+    return {
+      title: "No yearly data yet",
+      hint: "Your monthly balance summary will appear here after transactions are added.",
+      primaryActionLabel: "Add transaction",
+      onPrimaryAction: openNew,
+    };
+  }, [noAccounts, openNew, setLocation]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6">
@@ -223,9 +284,7 @@ export default function StatisticsPage() {
                 </div>
               </div>
 
-              {yearSummary.table.length === 0 && (
-                <p className="text-sm text-muted-foreground">No data yet.</p>
-              )}
+              {yearSummary.table.length === 0 && <EmptyState {...yearlyEmptyState} />}
 
               {yearSummary.table.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
@@ -390,15 +449,7 @@ export default function StatisticsPage() {
 
       <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
         {categoryTotals.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-6 text-center">
-            <p className="text-sm text-muted-foreground">No data for this month.</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Try another month or add a transaction to see insights.
-            </p>
-            <Button onClick={() => setMonthDate(subMonths(monthDate, 1))} className="mt-4 rounded-full px-6">
-              View last month
-            </Button>
-          </div>
+          <EmptyState {...chartEmptyState} />
         ) : (
           <>
             <div className="h-64 w-full">
