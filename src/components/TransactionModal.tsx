@@ -56,6 +56,7 @@ export function TransactionModal({
   const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isSettlementDateOpen, setIsSettlementDateOpen] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
 
   const parseTags = (value: string) => value
@@ -74,6 +75,7 @@ export function TransactionModal({
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
       loanSettlementAccountId: null,
+      settlementDate: null,
       counterparty: "",
       note: "",
       date: new Date(),
@@ -95,6 +97,7 @@ export function TransactionModal({
         paymentMethod: transaction.paymentMethod ?? "Cash",
         accountId: transaction.accountId ?? cashAccount?.id ?? null,
         loanSettlementAccountId: transaction.loanSettlementAccountId ?? (transaction.loanStatus === "settled" ? transaction.accountId ?? null : null),
+        settlementDate: transaction.settlementDate ? new Date(transaction.settlementDate) : null,
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
         date: transaction.date ? new Date(transaction.date) : new Date(),
@@ -114,6 +117,7 @@ export function TransactionModal({
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
       loanSettlementAccountId: null,
+      settlementDate: null,
       counterparty: "",
       note: "",
       date: new Date(),
@@ -153,6 +157,7 @@ export function TransactionModal({
       form.setValue("loanType", null);
       form.setValue("loanStatus", null);
       form.setValue("loanSettlementAccountId", null);
+      form.setValue("settlementDate", null);
     } else {
       form.setValue("loanStatus", "open");
     }
@@ -340,8 +345,13 @@ export function TransactionModal({
                             if (!current) {
                               form.setValue("loanSettlementAccountId", form.getValues("accountId") ?? null);
                             }
+                            const currentSettlementDate = form.getValues("settlementDate");
+                            if (!currentSettlementDate) {
+                              form.setValue("settlementDate", new Date());
+                            }
                           } else {
                             form.setValue("loanSettlementAccountId", null);
+                            form.setValue("settlementDate", null);
                           }
                         }}
                       >
@@ -359,29 +369,62 @@ export function TransactionModal({
                   )}
                 />
                 {form.watch("loanStatus") === "settled" && (
-                  <FormField
-                    control={form.control}
-                    name="loanSettlementAccountId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Settlement account</FormLabel>
-                        <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select account" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {(accounts || []).map((account) => (
-                              <SelectItem key={account.id} value={String(account.id)}>
-                                {account.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="loanSettlementAccountId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Settlement account</FormLabel>
+                          <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select account" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {(accounts || []).map((account) => (
+                                <SelectItem key={account.id} value={String(account.id)}>
+                                  {account.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="settlementDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Settlement date</FormLabel>
+                          <Popover onOpenChange={(value) => setIsSettlementDateOpen(value)} open={isSettlementDateOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button variant="outline" className="w-full justify-between">
+                                  {field.value ? format(field.value, "PPP") : "Pick a date"}
+                                  <CalendarIcon className="h-4 w-4" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ?? undefined}
+                                onSelect={(date) => {
+                                  field.onChange(date ?? null);
+                                  setIsSettlementDateOpen(false);
+                                }}
+                                disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 )}
               </div>
             )}

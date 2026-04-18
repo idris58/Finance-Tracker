@@ -21,6 +21,7 @@ export const insertTransactionSchema = z.object({
   categoryId: z.number().optional().nullable(),
   categoryName: z.string().optional().nullable(),
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
+  settlementDate: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)).optional().nullable(),
   paymentMethod: z.string().min(1),
   accountId: z.number().optional().nullable(),
   loanSettlementAccountId: z.number().optional().nullable(),
@@ -63,6 +64,7 @@ export interface Transaction {
   categoryId?: number | null;
   categoryName?: string | null;
   date: Date;
+  settlementDate?: Date | null;
   paymentMethod: string;
   accountId?: number | null;
   loanSettlementAccountId?: number | null;

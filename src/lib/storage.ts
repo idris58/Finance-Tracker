@@ -116,6 +116,7 @@ export class LocalStorage implements IStorage {
     const transactionsWithDates = transactions.map((tx) => ({
       ...tx,
       date: tx.date instanceof Date ? tx.date : new Date(tx.date),
+      settlementDate: tx.settlementDate instanceof Date ? tx.settlementDate : (tx.settlementDate ? new Date(tx.settlementDate) : null),
     }));
 
     if (limit) {
@@ -153,6 +154,10 @@ export class LocalStorage implements IStorage {
     if (transaction.type === 'loan' && transaction.loanStatus === 'settled' && !transaction.loanSettlementAccountId) {
       transaction.loanSettlementAccountId = transaction.accountId ?? null;
     }
+    if (transaction.type !== 'loan' || transaction.loanStatus !== 'settled') {
+      transaction.loanSettlementAccountId = null;
+      transaction.settlementDate = null;
+    }
 
     if (transaction.accountId) {
       const account = await this.getAccount(transaction.accountId);
@@ -171,6 +176,7 @@ export class LocalStorage implements IStorage {
     const id = await db.transactions.add({
       ...transaction,
       date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
+      settlementDate: transaction.settlementDate instanceof Date ? transaction.settlementDate : (transaction.settlementDate ? new Date(transaction.settlementDate) : null),
     } as Transaction);
 
     const created = await db.transactions.get(id);
@@ -209,6 +215,9 @@ export class LocalStorage implements IStorage {
       ...existing,
       ...updates,
       date: updates.date ? (updates.date instanceof Date ? updates.date : new Date(updates.date)) : existing.date,
+      settlementDate: updates.settlementDate === undefined
+        ? existing.settlementDate ?? null
+        : (updates.settlementDate instanceof Date ? updates.settlementDate : (updates.settlementDate ? new Date(updates.settlementDate) : null)),
     };
     if (!Array.isArray(merged.tags)) {
       merged.tags = [];
@@ -230,6 +239,10 @@ export class LocalStorage implements IStorage {
     }
     if (merged.type === 'loan' && merged.loanStatus === 'settled' && !merged.loanSettlementAccountId) {
       merged.loanSettlementAccountId = merged.accountId ?? null;
+    }
+    if (merged.type !== 'loan' || merged.loanStatus !== 'settled') {
+      merged.loanSettlementAccountId = null;
+      merged.settlementDate = null;
     }
 
     if (merged.accountId) {
@@ -524,6 +537,7 @@ export class LocalStorage implements IStorage {
           categoryId: catId ?? null,
           categoryName: tx.categoryName ?? null,
           date: new Date(tx.date),
+          settlementDate: tx.settlementDate ? new Date(tx.settlementDate) : null,
           paymentMethod: tx.paymentMethod || 'Cash',
           accountId,
           loanSettlementAccountId: settlementAccountId,

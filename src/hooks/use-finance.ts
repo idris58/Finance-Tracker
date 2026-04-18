@@ -350,6 +350,9 @@ const validateImportData = (data: any) => {
     if (!tx.date || isNaN(new Date(tx.date).getTime())) {
       errors.push(`Transaction #${index + 1} has invalid date.`);
     }
+    if (tx.settlementDate && isNaN(new Date(tx.settlementDate).getTime())) {
+      errors.push(`Transaction #${index + 1} has invalid settlementDate.`);
+    }
     if (tx.type && !['expense', 'income', 'loan'].includes(tx.type)) {
       errors.push(`Transaction #${index + 1} has invalid type.`);
     }
@@ -364,6 +367,7 @@ const validateImportData = (data: any) => {
         categoryId: typeof tx.categoryId === 'number' ? tx.categoryId : null,
         categoryName: tx.categoryName ?? null,
         date: tx.date,
+        settlementDate: tx.settlementDate ?? null,
         paymentMethod: tx.paymentMethod ?? '',
         accountId: typeof tx.accountId === 'number' ? tx.accountId : null,
         loanSettlementAccountId: typeof tx.loanSettlementAccountId === 'number' ? tx.loanSettlementAccountId : null,

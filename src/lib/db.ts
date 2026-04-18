@@ -20,6 +20,7 @@ export interface Transaction {
   categoryId?: number | null;
   categoryName?: string | null;
   date: Date;
+  settlementDate?: Date | null;
   paymentMethod: string;
   accountId?: number | null;
   loanSettlementAccountId?: number | null;
@@ -163,6 +164,21 @@ class FinanceDatabase extends Dexie {
       transactions: '++id, date, categoryId, type, accountId, loanSettlementAccountId, paymentMethod',
       accounts: '++id, name',
       transfers: '++id, date, fromAccountId, toAccountId',
+    });
+
+    this.version(9).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId, loanSettlementAccountId, paymentMethod',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+    }).upgrade(async (tx) => {
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const txRow of transactions) {
+        if (!('settlementDate' in txRow)) {
+          await tx.table('transactions').update(txRow.id, { settlementDate: null });
+        }
+      }
     });
   }
 }
