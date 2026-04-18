@@ -118,13 +118,13 @@ export default function StatisticsPage() {
       if (tx.type === "loan" && tx.loanType === "lend") rows[key].lend = roundMoney(rows[key].lend + Number(tx.amount));
     });
 
-    const table = Object.entries(rows)
-      .map(([month, value]) => ({
-        month,
-        ...value,
-        balance: roundMoney(value.income - value.expense),
-      }))
-      .sort((a, b) => (a.month < b.month ? 1 : -1));
+      const table = Object.entries(rows)
+        .map(([month, value]) => ({
+          month,
+          ...value,
+          balance: roundMoney(value.income + value.borrow - value.expense - value.lend),
+        }))
+        .sort((a, b) => (a.month < b.month ? 1 : -1));
 
     return { currentYear, totalExpense, totalIncome, table };
   }, [allTransactions]);
