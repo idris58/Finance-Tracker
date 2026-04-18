@@ -246,18 +246,13 @@ export default function HomePage() {
           </div>
 
           {carriedLoans.length > 0 && (
-            <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Unsettled loans from previous months</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Tap a loan to update or settle it.</p>
-                </div>
-                <div className="rounded-full bg-background/70 px-3 py-1 text-[11px] text-muted-foreground">
-                  Before {format(monthDate, "MMM yyyy")}
-                </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                <p className="font-medium">Unsettled loans from previous months</p>
+                <span>Before {format(monthDate, "MMM yyyy")}</span>
               </div>
 
-              <div className="mt-4 space-y-2">
+              <div className="space-y-2">
                 {carriedLoans.map((tx) => {
                   const entry = getCategoryIcon(tx.categoryName);
                   const Icon = entry.icon;
