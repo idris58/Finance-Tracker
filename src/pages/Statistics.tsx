@@ -100,22 +100,45 @@ export default function StatisticsPage() {
     let totalExpense = 0;
     let totalIncome = 0;
 
+    const ensureRow = (key: string) => {
+      if (!rows[key]) rows[key] = { expense: 0, income: 0, borrow: 0, lend: 0 };
+    };
+
     (allTransactions || []).forEach((tx) => {
       const txDate = new Date(tx.date);
-      if (txDate.getFullYear() !== currentYear) return;
+      const amount = Number(tx.amount);
 
-      const key = format(txDate, "yyyy-MM");
-      if (!rows[key]) rows[key] = { expense: 0, income: 0, borrow: 0, lend: 0 };
-      if ((tx.type || "expense") === "expense") {
-        rows[key].expense = roundMoney(rows[key].expense + Number(tx.amount));
-        totalExpense = roundMoney(totalExpense + Number(tx.amount));
+      if (txDate.getFullYear() === currentYear) {
+        const key = format(txDate, "yyyy-MM");
+        ensureRow(key);
+        if ((tx.type || "expense") === "expense") {
+          rows[key].expense = roundMoney(rows[key].expense + amount);
+          totalExpense = roundMoney(totalExpense + amount);
+        }
+        if (tx.type === "income") {
+          rows[key].income = roundMoney(rows[key].income + amount);
+          totalIncome = roundMoney(totalIncome + amount);
+        }
+        if (tx.type === "loan" && tx.loanType === "borrow") {
+          rows[key].borrow = roundMoney(rows[key].borrow + amount);
+        }
+        if (tx.type === "loan" && tx.loanType === "lend") {
+          rows[key].lend = roundMoney(rows[key].lend + amount);
+        }
       }
-      if (tx.type === "income") {
-        rows[key].income = roundMoney(rows[key].income + Number(tx.amount));
-        totalIncome = roundMoney(totalIncome + Number(tx.amount));
+
+      if (tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate) {
+        const settlementDate = new Date(tx.settlementDate);
+        if (settlementDate.getFullYear() !== currentYear) return;
+        const settlementKey = format(settlementDate, "yyyy-MM");
+        ensureRow(settlementKey);
+        if (tx.loanType === "borrow") {
+          rows[settlementKey].borrow = roundMoney(rows[settlementKey].borrow - amount);
+        }
+        if (tx.loanType === "lend") {
+          rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - amount);
+        }
       }
-      if (tx.type === "loan" && tx.loanType === "borrow") rows[key].borrow = roundMoney(rows[key].borrow + Number(tx.amount));
-      if (tx.type === "loan" && tx.loanType === "lend") rows[key].lend = roundMoney(rows[key].lend + Number(tx.amount));
     });
 
       const table = Object.entries(rows)
