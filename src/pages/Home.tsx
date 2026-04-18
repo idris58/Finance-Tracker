@@ -71,25 +71,11 @@ export default function HomePage() {
     return groups;
   }, [filteredTransactions]);
 
-  const carriedLoanTotals = useMemo(() => {
+  const carriedLoans = useMemo(() => {
     const monthStart = startOfMonth(monthDate);
-    return (allTransactions || []).reduce(
-      (totals, tx) => {
-        if (tx.type !== "loan" || tx.loanStatus !== "open") return totals;
-        if (new Date(tx.date) >= monthStart) return totals;
-
-        if (tx.loanType === "borrow") {
-          totals.borrow = roundMoney(totals.borrow + Number(tx.amount));
-        }
-
-        if (tx.loanType === "lend") {
-          totals.lend = roundMoney(totals.lend + Number(tx.amount));
-        }
-
-        return totals;
-      },
-      { borrow: 0, lend: 0 }
-    );
+    return (allTransactions || [])
+      .filter((tx) => tx.type === "loan" && tx.loanStatus === "open" && new Date(tx.date) < monthStart)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allTransactions, monthDate]);
 
   const hasAnyTypeTransactions = useMemo(() => {
@@ -259,31 +245,52 @@ export default function HomePage() {
             </div>
           </div>
 
-          {(carriedLoanTotals.borrow > 0 || carriedLoanTotals.lend > 0) && (
+          {carriedLoans.length > 0 && (
             <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Open from previous months</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Unsettled loans carried into this month.</p>
+                  <p className="text-sm font-medium">Unsettled loans from previous months</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Tap a loan to update or settle it.</p>
                 </div>
                 <div className="rounded-full bg-background/70 px-3 py-1 text-[11px] text-muted-foreground">
                   Before {format(monthDate, "MMM yyyy")}
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">Borrow</p>
-                  <div className="mt-2 text-lg font-semibold text-rose-500">
-                    {currency}{formatMoney(carriedLoanTotals.borrow)}
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">Lend</p>
-                  <div className="mt-2 text-lg font-semibold text-emerald-500">
-                    {currency}{formatMoney(carriedLoanTotals.lend)}
-                  </div>
-                </div>
+              <div className="mt-4 space-y-2">
+                {carriedLoans.map((tx) => {
+                  const entry = getCategoryIcon(tx.categoryName);
+                  const Icon = entry.icon;
+                  return (
+                    <button
+                      key={tx.id}
+                      onClick={() => tx.id && openEdit(tx)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-background/70 p-4 text-left transition hover:border-primary/30 hover:bg-background"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-card">
+                          <Icon className={cn("h-5 w-5", entry.className)} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{tx.categoryName || "Loan"}</p>
+                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
+                              open
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(tx.date), "MMM d, yyyy")} - {tx.paymentMethod}
+                          </p>
+                          {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
+                        </div>
+                      </div>
+                      <p className="font-semibold text-foreground">
+                        {tx.loanType === "borrow" ? "+" : "-"}
+                        {currency}{formatMoney(Number(tx.amount))}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
