@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect } from "react";
-import { format, subMonths } from "date-fns";
+import { format, startOfMonth, subMonths } from "date-fns";
 import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
@@ -70,6 +70,27 @@ export default function HomePage() {
     });
     return groups;
   }, [filteredTransactions]);
+
+  const carriedLoanTotals = useMemo(() => {
+    const monthStart = startOfMonth(monthDate);
+    return (allTransactions || []).reduce(
+      (totals, tx) => {
+        if (tx.type !== "loan" || tx.loanStatus !== "open") return totals;
+        if (new Date(tx.date) >= monthStart) return totals;
+
+        if (tx.loanType === "borrow") {
+          totals.borrow = roundMoney(totals.borrow + Number(tx.amount));
+        }
+
+        if (tx.loanType === "lend") {
+          totals.lend = roundMoney(totals.lend + Number(tx.amount));
+        }
+
+        return totals;
+      },
+      { borrow: 0, lend: 0 }
+    );
+  }, [allTransactions, monthDate]);
 
   const hasAnyTypeTransactions = useMemo(() => {
     const txs = allTransactions || [];
@@ -222,19 +243,50 @@ export default function HomePage() {
       )}
 
       {activeType === "loan" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
-            <p className="text-xs text-muted-foreground">Borrow</p>
-            <div className="mt-2 text-xl font-semibold text-rose-500">
-              {currency}{formatMoney(totals.totalBorrow)}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
+              <p className="text-xs text-muted-foreground">Borrow</p>
+              <div className="mt-2 text-xl font-semibold text-rose-500">
+                {currency}{formatMoney(totals.totalBorrow)}
+              </div>
+            </div>
+            <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
+              <p className="text-xs text-muted-foreground">Lend</p>
+              <div className="mt-2 text-xl font-semibold text-emerald-500">
+                {currency}{formatMoney(totals.totalLend)}
+              </div>
             </div>
           </div>
-          <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
-            <p className="text-xs text-muted-foreground">Lend</p>
-            <div className="mt-2 text-xl font-semibold text-emerald-500">
-              {currency}{formatMoney(totals.totalLend)}
+
+          {(carriedLoanTotals.borrow > 0 || carriedLoanTotals.lend > 0) && (
+            <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Open from previous months</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Unsettled loans carried into this month.</p>
+                </div>
+                <div className="rounded-full bg-background/70 px-3 py-1 text-[11px] text-muted-foreground">
+                  Before {format(monthDate, "MMM yyyy")}
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">Borrow</p>
+                  <div className="mt-2 text-lg font-semibold text-rose-500">
+                    {currency}{formatMoney(carriedLoanTotals.borrow)}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">Lend</p>
+                  <div className="mt-2 text-lg font-semibold text-emerald-500">
+                    {currency}{formatMoney(carriedLoanTotals.lend)}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
