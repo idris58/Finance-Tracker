@@ -273,7 +273,7 @@ export default function StatisticsPage() {
                   {yearSummary.currentYear}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total expense</p>
                   <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalExpense)}</p>
@@ -281,6 +281,15 @@ export default function StatisticsPage() {
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total income</p>
                   <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalIncome)}</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                  <p className="text-xs text-muted-foreground">Net balance</p>
+                  <p className={cn(
+                    "mt-2 text-lg font-semibold",
+                    yearSummary.totalIncome - yearSummary.totalExpense < 0 ? "text-rose-500" : "text-emerald-500"
+                  )}>
+                    {currency}{formatMoney(roundMoney(yearSummary.totalIncome - yearSummary.totalExpense))}
+                  </p>
                 </div>
               </div>
 
