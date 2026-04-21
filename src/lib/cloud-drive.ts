@@ -124,23 +124,19 @@ export const preloadCloudDriveAuth = async () => {
   }
 };
 
-const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
-  await ensureTokenClient();
+const requestAccessTokenImmediate = (prompt: "consent" | "") => {
+  const googleWindow = window as GoogleWindow;
+  const oauth2 = googleWindow.google?.accounts?.oauth2;
+  if (!oauth2) {
+    return Promise.reject(new Error("Google sign-in is still loading. Wait a moment and try again."));
+  }
+
+  const clientId = getClientId();
+  if (!clientId) {
+    return Promise.reject(new Error("Google Client ID is missing. Add VITE_GOOGLE_CLIENT_ID in your environment."));
+  }
 
   return new Promise<string>((resolve, reject) => {
-    const googleWindow = window as GoogleWindow;
-    const oauth2 = googleWindow.google?.accounts?.oauth2;
-    if (!oauth2) {
-      reject(new Error("Google Identity API is unavailable."));
-      return;
-    }
-
-    const clientId = getClientId();
-    if (!clientId) {
-      reject(new Error("Google Client ID is missing. Add VITE_GOOGLE_CLIENT_ID in your environment."));
-      return;
-    }
-
     const oneShotClient = oauth2.initTokenClient({
       client_id: clientId,
       scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
@@ -161,6 +157,11 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
 
     oneShotClient.requestAccessToken({ prompt });
   });
+};
+
+const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
+  await ensureTokenClient();
+  return requestAccessTokenImmediate(prompt);
 };
 
 const getValidToken = async () => {
@@ -217,12 +218,12 @@ const enforceRetention = async () => {
   await Promise.all(stale.map((file) => deleteFile(file.id)));
 };
 
-export const connectCloudDrive = async () => {
-  await requestAccessToken("consent");
-  const email = await getCloudAccountEmail();
-  accountHint = email;
-  return { connected: true, email };
-};
+export const connectCloudDrive = () =>
+  requestAccessTokenImmediate("consent").then(async () => {
+    const email = await getCloudAccountEmail();
+    accountHint = email;
+    return { connected: true, email };
+  });
 
 export const disconnectCloudDrive = () => {
   accessToken = null;
