@@ -46,6 +46,36 @@ const readCloudBackupState = (): CloudBackupState => {
   }
 };
 
+const applyCloudConnectSuccess = ({
+  result,
+  queryClient,
+  toast,
+}: {
+  result: { connected: boolean; email: string | null };
+  queryClient: ReturnType<typeof useQueryClient>;
+  toast: ReturnType<typeof useToast>["toast"];
+}) => {
+  const previous = readCloudBackupState();
+  setCloudAccountHint(result.email ?? null);
+  writeCloudBackupState({ ...previous, connected: true, email: result.email ?? null });
+  queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
+  toast({ title: "Google Drive connected", description: "Cloud backup is ready to use." });
+};
+
+const applyCloudConnectError = ({
+  error,
+  toast,
+}: {
+  error: any;
+  toast: ReturnType<typeof useToast>["toast"];
+}) => {
+  toast({
+    title: "Google sign-in failed",
+    description: error?.message || "Could not connect to Google Drive.",
+    variant: "destructive",
+  });
+};
+
 const writeCloudBackupState = (next: CloudBackupState) => {
   localStorage.setItem(CLOUD_BACKUP_STATE_KEY, JSON.stringify(next));
 };
@@ -530,6 +560,22 @@ export function usePreloadCloudBackupAuth() {
   return useCallback(() => preloadCloudDriveAuth(), []);
 }
 
+export function useDirectCloudConnect() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useCallback(async () => {
+    try {
+      const result = await connectCloudDrive();
+      applyCloudConnectSuccess({ result, queryClient, toast });
+      return result;
+    } catch (error) {
+      applyCloudConnectError({ error, toast });
+      throw error;
+    }
+  }, [queryClient, toast]);
+}
+
 export function useCloudConnect() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -539,18 +585,10 @@ export function useCloudConnect() {
       return await connectCloudDrive();
     },
     onSuccess: (result) => {
-      const previous = readCloudBackupState();
-      setCloudAccountHint(result.email ?? null);
-      writeCloudBackupState({ ...previous, connected: true, email: result.email ?? null });
-      queryClient.invalidateQueries({ queryKey: ["cloud-backup-status"] });
-      toast({ title: "Google Drive connected", description: "Cloud backup is ready to use." });
+      applyCloudConnectSuccess({ result, queryClient, toast });
     },
     onError: (error: any) => {
-      toast({
-        title: "Google sign-in failed",
-        description: error?.message || "Could not connect to Google Drive.",
-        variant: "destructive",
-      });
+      applyCloudConnectError({ error, toast });
     },
   });
 }

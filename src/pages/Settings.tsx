@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, Cloud, Download, Link2, Monitor, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCloudBackupNow, useCloudBackupStatus, useCloudConnect, useCloudDisconnect, useCloudRestoreLatest, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useUpdateSettings } from "@/hooks/use-finance";
+import { useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -24,14 +24,15 @@ export default function SettingsPage() {
   const exportData = useExportData();
   const importData = useImportData();
   const cloudStatus = useCloudBackupStatus();
-  const cloudConnect = useCloudConnect();
   const cloudDisconnect = useCloudDisconnect();
   const cloudBackupNow = useCloudBackupNow();
   const cloudRestoreLatest = useCloudRestoreLatest();
   const preloadCloudBackupAuth = usePreloadCloudBackupAuth();
+  const directCloudConnect = useDirectCloudConnect();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
   const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
+  const [isConnectingCloud, setIsConnectingCloud] = useState(false);
 
   const handleInstall = async () => {
     const outcome = await promptInstall();
@@ -45,6 +46,16 @@ export default function SettingsPage() {
   useEffect(() => {
     preloadCloudBackupAuth();
   }, [preloadCloudBackupAuth]);
+
+  const handleCloudConnect = async () => {
+    if (isConnectingCloud) return;
+    setIsConnectingCloud(true);
+    try {
+      await directCloudConnect();
+    } finally {
+      setIsConnectingCloud(false);
+    }
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -158,8 +169,8 @@ export default function SettingsPage() {
                   <Button
                     variant="outline"
                     className="rounded-2xl"
-                    onClick={() => cloudConnect.mutate()}
-                    disabled={cloudConnect.isPending}
+                    onClick={handleCloudConnect}
+                    disabled={isConnectingCloud}
                   >
                     <Link2 className="mr-2 h-4 w-4" /> Connect Google
                   </Button>
