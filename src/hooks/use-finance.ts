@@ -1,7 +1,8 @@
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, setCloudAccountHint, uploadBackupToCloud } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud } from "@/lib/cloud-drive";
 import type { 
   InsertTransaction, 
   InsertAccount,
@@ -523,6 +524,10 @@ export function useCloudBackupStatus() {
     },
     staleTime: Infinity,
   });
+}
+
+export function usePreloadCloudBackupAuth() {
+  return useCallback(() => preloadCloudDriveAuth(), []);
 }
 
 export function useCloudConnect() {

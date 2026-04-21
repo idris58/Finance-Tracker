@@ -11,6 +11,10 @@ type GoogleTokenResponse = {
   error_description?: string;
 };
 
+type GooglePromptError = {
+  type?: "popup_failed_to_open" | "popup_closed" | "unknown";
+};
+
 type GoogleTokenClient = {
   requestAccessToken: (options?: { prompt?: string }) => void;
 };
@@ -21,6 +25,7 @@ type GoogleOauth2 = {
     scope: string;
     hint?: string;
     callback: (response: GoogleTokenResponse) => void;
+    error_callback?: (error: GooglePromptError) => void;
   }) => GoogleTokenClient;
 };
 
@@ -47,6 +52,16 @@ let tokenExpiresAt = 0;
 let accountHint: string | null = null;
 
 const getClientId = () => import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+const mapPromptError = (error?: GooglePromptError) => {
+  if (error?.type === "popup_failed_to_open") {
+    return "Google sign-in popup was blocked. Allow popups for this site and try again.";
+  }
+  if (error?.type === "popup_closed") {
+    return "Google sign-in was closed before it finished.";
+  }
+  return "Google sign-in failed.";
+};
 
 const ensureGisLoaded = async () => {
   const googleWindow = window as GoogleWindow;
@@ -94,7 +109,18 @@ const ensureTokenClient = async () => {
       callback: () => {
         // callback is replaced per-request in requestAccessToken.
       },
+      error_callback: () => {
+        // handled per-request in requestAccessToken.
+      },
     });
+  }
+};
+
+export const preloadCloudDriveAuth = async () => {
+  try {
+    await ensureTokenClient();
+  } catch {
+    // Ignore prewarm errors; the connect action will surface them if needed.
   }
 };
 
@@ -127,6 +153,9 @@ const requestAccessToken = async (prompt: "consent" | "" = "consent") => {
         accessToken = response.access_token;
         tokenExpiresAt = Date.now() + ((response.expires_in ?? 3600) - 30) * 1000;
         resolve(response.access_token);
+      },
+      error_callback: (error: GooglePromptError) => {
+        reject(new Error(mapPromptError(error)));
       },
     });
 
