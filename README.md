@@ -11,7 +11,7 @@ A clean, mobile-first personal finance tracker with accounts, income/expense/bor
 Built as a practical finance app with a strong focus on simplicity, clean UX, and real-world data handling.
 
 ## 🚀 Live Demo
-https://fh-sigma.vercel.app
+https://financetracker-web.vercel.app
 
 
 ## ✨ Features
