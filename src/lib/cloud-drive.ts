@@ -51,6 +51,10 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 let accountHint: string | null = null;
 
+// Shared resolve/reject for the current token request (swapped per-call)
+let pendingResolve: ((token: string) => void) | null = null;
+let pendingReject: ((error: Error) => void) | null = null;
+
 const getClientId = () => import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 const mapPromptError = (error?: GooglePromptError) => {
@@ -106,11 +110,21 @@ const ensureTokenClient = async () => {
       client_id: clientId,
       scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
       hint: accountHint || undefined,
-      callback: () => {
-        // callback is replaced per-request in requestAccessToken.
+      callback: (response: GoogleTokenResponse) => {
+        if (response.error || !response.access_token) {
+          pendingReject?.(new Error(response.error_description || response.error || "Google sign-in failed."));
+        } else {
+          accessToken = response.access_token;
+          tokenExpiresAt = Date.now() + ((response.expires_in ?? 3600) - 30) * 1000;
+          pendingResolve?.(response.access_token);
+        }
+        pendingResolve = null;
+        pendingReject = null;
       },
-      error_callback: () => {
-        // handled per-request in requestAccessToken.
+      error_callback: (error: GooglePromptError) => {
+        pendingReject?.(new Error(mapPromptError(error)));
+        pendingResolve = null;
+        pendingReject = null;
       },
     });
   }
@@ -124,38 +138,22 @@ export const preloadCloudDriveAuth = async () => {
   }
 };
 
+/**
+ * Opens the Google OAuth popup using the pre-initialized shared token client.
+ * MUST be called synchronously from a user click handler to avoid popup blocking.
+ * The tokenClient must already be initialized via preloadCloudDriveAuth().
+ */
 const requestAccessTokenImmediate = (prompt: "consent" | "") => {
-  const googleWindow = window as GoogleWindow;
-  const oauth2 = googleWindow.google?.accounts?.oauth2;
-  if (!oauth2) {
+  if (!tokenClient) {
     return Promise.reject(new Error("Google sign-in is still loading. Wait a moment and try again."));
   }
 
-  const clientId = getClientId();
-  if (!clientId) {
-    return Promise.reject(new Error("Google Client ID is missing. Add VITE_GOOGLE_CLIENT_ID in your environment."));
-  }
-
   return new Promise<string>((resolve, reject) => {
-    const oneShotClient = oauth2.initTokenClient({
-      client_id: clientId,
-      scope: `${DRIVE_SCOPE} ${PROFILE_SCOPES}`,
-      hint: accountHint || undefined,
-      callback: (response: GoogleTokenResponse) => {
-        if (response.error || !response.access_token) {
-          reject(new Error(response.error_description || response.error || "Google sign-in failed."));
-          return;
-        }
-        accessToken = response.access_token;
-        tokenExpiresAt = Date.now() + ((response.expires_in ?? 3600) - 30) * 1000;
-        resolve(response.access_token);
-      },
-      error_callback: (error: GooglePromptError) => {
-        reject(new Error(mapPromptError(error)));
-      },
-    });
-
-    oneShotClient.requestAccessToken({ prompt });
+    // Swap the shared callbacks to this request's resolve/reject
+    pendingResolve = resolve;
+    pendingReject = reject;
+    // This MUST call window.open synchronously from the user gesture
+    tokenClient!.requestAccessToken({ prompt });
   });
 };
 

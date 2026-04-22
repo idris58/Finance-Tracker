@@ -564,15 +564,18 @@ export function useDirectCloudConnect() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  return useCallback(async () => {
-    try {
-      const result = await connectCloudDrive();
-      applyCloudConnectSuccess({ result, queryClient, toast });
-      return result;
-    } catch (error) {
-      applyCloudConnectError({ error, toast });
-      throw error;
-    }
+  return useCallback(() => {
+    // IMPORTANT: No async/await here — connectCloudDrive() must run
+    // synchronously from the click event so the popup is not blocked.
+    return connectCloudDrive()
+      .then((result) => {
+        applyCloudConnectSuccess({ result, queryClient, toast });
+        return result;
+      })
+      .catch((error) => {
+        applyCloudConnectError({ error, toast });
+        throw error;
+      });
   }, [queryClient, toast]);
 }
 

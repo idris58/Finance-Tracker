@@ -47,14 +47,14 @@ export default function SettingsPage() {
     preloadCloudBackupAuth();
   }, [preloadCloudBackupAuth]);
 
-  const handleCloudConnect = async () => {
+  const handleCloudConnect = () => {
     if (isConnectingCloud) return;
     setIsConnectingCloud(true);
-    try {
-      await directCloudConnect();
-    } finally {
-      setIsConnectingCloud(false);
-    }
+    // Use .then/.catch (NOT async/await) so the popup opens
+    // in the same synchronous stack frame as the click event.
+    directCloudConnect()
+      .then(() => setIsConnectingCloud(false))
+      .catch(() => setIsConnectingCloud(false));
   };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
