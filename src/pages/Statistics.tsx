@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format, subMonths } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -127,16 +127,31 @@ export default function StatisticsPage() {
         }
       }
 
-      if (tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate) {
+      if (tx.type === "loan" && Array.isArray(tx.settlements) && tx.settlements.length > 0) {
+        tx.settlements.forEach((s) => {
+          const settlementDate = new Date(s.date);
+          if (settlementDate.getFullYear() !== currentYear) return;
+          const settlementKey = format(settlementDate, "yyyy-MM");
+          const sAmount = Number(s.amount) || 0;
+          ensureRow(settlementKey);
+          if (tx.loanType === "borrow") {
+            rows[settlementKey].borrow = roundMoney(rows[settlementKey].borrow - sAmount);
+          }
+          if (tx.loanType === "lend") {
+            rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - sAmount);
+          }
+        });
+      } else if (tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate) {
         const settlementDate = new Date(tx.settlementDate);
-        if (settlementDate.getFullYear() !== currentYear) return;
-        const settlementKey = format(settlementDate, "yyyy-MM");
-        ensureRow(settlementKey);
-        if (tx.loanType === "borrow") {
-          rows[settlementKey].borrow = roundMoney(rows[settlementKey].borrow - amount);
-        }
-        if (tx.loanType === "lend") {
-          rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - amount);
+        if (settlementDate.getFullYear() === currentYear) {
+          const settlementKey = format(settlementDate, "yyyy-MM");
+          ensureRow(settlementKey);
+          if (tx.loanType === "borrow") {
+            rows[settlementKey].borrow = roundMoney(rows[settlementKey].borrow - amount);
+          }
+          if (tx.loanType === "lend") {
+            rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - amount);
+          }
         }
       }
     });

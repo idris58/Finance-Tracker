@@ -77,7 +77,7 @@ export default function HomePage() {
   const carriedLoans = useMemo(() => {
     const monthStart = startOfMonth(monthDate);
     return (allTransactions || [])
-      .filter((tx) => tx.type === "loan" && tx.loanStatus === "open" && new Date(tx.date) < monthStart)
+      .filter((tx) => tx.type === "loan" && tx.loanStatus !== "settled" && new Date(tx.date) < monthStart)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allTransactions, monthDate]);
 
@@ -277,8 +277,15 @@ export default function HomePage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{tx.categoryName || "Loan"}</p>
-                              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                                {tx.loanStatus ?? "open"}
+                              <span
+                                className={cn(
+                                  "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase border",
+                                  tx.loanStatus === "partial"
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                    : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                )}
+                              >
+                                {tx.loanStatus === "partial" ? "Partial" : "Unsettled"}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground">
