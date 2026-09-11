@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -93,7 +93,49 @@
   }
 }
 
-/* Remove focus outlines/tap highlights on Recharts shapes for mobile */
+/* ========== Accessibility: focus-visible ========== */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ========== Micro-transitions ========== */
+button, a, [role="button"] {
+  transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ========== Custom scrollbar ========== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ========== Loan progress bar animation ========== */
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: var(--tw-progress-width, 100%); }
+}
+
+.animate-progress {
+  animation: progress-fill 0.8s ease-out forwards;
+}
+
+/* ========== Remove focus outlines/tap highlights on Recharts shapes for mobile ========== */
 .recharts-wrapper,
 .recharts-wrapper * {
   -webkit-tap-highlight-color: transparent;
@@ -102,4 +144,3 @@
 .recharts-wrapper *:focus {
   outline: none;
 }
-

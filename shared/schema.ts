@@ -3,12 +3,12 @@ import { z } from "zod";
 // === ZOD SCHEMAS ===
 
 export const insertSettingsSchema = z.object({
-  currencySymbol: z.string().default("\u09f3"),
+  currencySymbol: z.string().default("৳"),
 });
 
 export const transactionTypeSchema = z.enum(["expense", "income", "loan"]);
 export const loanTypeSchema = z.enum(["borrow", "lend"]);
-export const loanStatusSchema = z.enum(["open", "settled"]);
+export const loanStatusSchema = z.enum(["open", "partial", "settled"]);
 
 export const insertCategorySchema = z.object({
   name: z.string().min(1),
@@ -58,6 +58,14 @@ export interface Category {
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 
+export interface LoanSettlement {
+  id: string;
+  amount: string;
+  accountId: number;
+  date: Date;
+  note?: string | null;
+}
+
 export interface Transaction {
   id?: number;
   amount: string;
@@ -73,7 +81,8 @@ export interface Transaction {
   tags?: string[];
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
-  loanStatus?: "open" | "settled" | null;
+  loanStatus?: "open" | "partial" | "settled" | null;
+  settlements?: LoanSettlement[];
 }
 
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;

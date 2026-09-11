@@ -1,4 +1,5 @@
-﻿import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import type { LoanSettlement } from '@shared/schema';
 
 // Types matching the original schema
 export interface Settings {
@@ -29,7 +30,8 @@ export interface Transaction {
   tags?: string[];
   type: "expense" | "income" | "loan";
   loanType?: "borrow" | "lend" | null;
-  loanStatus?: "open" | "settled" | null;
+  loanStatus?: "open" | "partial" | "settled" | null;
+  settlements?: LoanSettlement[];
 }
 
 export interface Account {
@@ -180,6 +182,35 @@ class FinanceDatabase extends Dexie {
         }
       }
     });
+
+    // Migration: Add settlements array for partial loan settlement tracking
+    // Also upgrades loanStatus to support "partial" value
+    this.version(10).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId, loanSettlementAccountId, paymentMethod',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+    }).upgrade(async (tx) => {
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const txRow of transactions) {
+        if (!('settlements' in txRow) || !Array.isArray(txRow.settlements)) {
+          // If this was a settled loan with old-style single settlement, convert it
+          if (txRow.type === 'loan' && txRow.loanStatus === 'settled' && txRow.loanSettlementAccountId) {
+            const settlement: LoanSettlement = {
+              id: `legacy-${txRow.id}`,
+              amount: txRow.amount,
+              accountId: txRow.loanSettlementAccountId,
+              date: txRow.settlementDate ? new Date(txRow.settlementDate) : new Date(txRow.date),
+              note: null,
+            };
+            await tx.table('transactions').update(txRow.id, { settlements: [settlement] });
+          } else {
+            await tx.table('transactions').update(txRow.id, { settlements: [] });
+          }
+        }
+      }
+    });
   }
 }
 
@@ -188,12 +219,12 @@ export const db = new FinanceDatabase();
 // Initialize default settings if none exist
 export async function initializeDatabase() {
   const settingsCount = await db.settings.count();
-    if (settingsCount === 0) {
-      await db.settings.add({
-        currencySymbol: '৳',
-        updatedAt: new Date(),
-      });
-    }
+  if (settingsCount === 0) {
+    await db.settings.add({
+      currencySymbol: '৳',
+      updatedAt: new Date(),
+    });
+  }
 
   const categoriesCount = await db.categories.count();
   if (categoriesCount === 0) {
@@ -242,10 +273,10 @@ export async function initializeDatabase() {
     ];
 
     for (const cat of required) {
-      const existing = await db.categories.where('name').equals(cat.name).first();
+      const existing = (await db.categories.where('name').equals(cat.name).first()) as Category | undefined;
       if (!existing) {
         await db.categories.add(cat);
-      } else if (!('type' in existing)) {
+      } else if (!(existing as any).type) {
         await db.categories.update(existing.id!, { type: cat.type });
       }
     }
@@ -261,4 +292,3 @@ export async function initializeDatabase() {
     await db.accounts.add({ name: 'Cash', type: 'Cash', balance: '0' });
   }
 }
-

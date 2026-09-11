@@ -12,7 +12,8 @@ import type {
   Settings,
   Account,
   Transfer,
-  DashboardStatsResponse
+  DashboardStatsResponse,
+  LoanSettlement,
 } from "@shared/schema";
 
 const CLOUD_BACKUP_STATE_KEY = "cloudBackupState";
@@ -189,6 +190,54 @@ export function useDeleteTransaction() {
   });
 }
 
+export function useAddLoanSettlement() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ transactionId, settlement }: { transactionId: number; settlement: LoanSettlement }) => {
+      return await storage.addLoanSettlement(transactionId, settlement);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({ title: "Settlement recorded", description: "Loan payment has been applied." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Settlement failed",
+        description: error?.message || "Could not record settlement.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteLoanSettlement() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ transactionId, settlementId }: { transactionId: number; settlementId: string }) => {
+      return await storage.deleteLoanSettlement(transactionId, settlementId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({ title: "Settlement removed", description: "Payment entry has been reversed." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Could not remove settlement.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // --- Accounts ---
 export function useAccounts() {
   return useQuery({
@@ -302,11 +351,17 @@ export function useStats() {
         .filter((tx) => tx.type === 'income')
         .reduce((sum, tx) => sum + Number(tx.amount), 0);
       const totalBorrow = transactions
-        .filter((tx) => tx.type === 'loan' && tx.loanType === 'borrow')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+        .filter((tx) => tx.type === 'loan' && tx.loanType === 'borrow' && tx.loanStatus !== 'settled')
+        .reduce((sum, tx) => {
+          const settled = (tx.settlements || []).reduce((s, p) => s + Number(p.amount), 0);
+          return sum + Math.max(0, Number(tx.amount) - settled);
+        }, 0);
       const totalLend = transactions
-        .filter((tx) => tx.type === 'loan' && tx.loanType === 'lend')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+        .filter((tx) => tx.type === 'loan' && tx.loanType === 'lend' && tx.loanStatus !== 'settled')
+        .reduce((sum, tx) => {
+          const settled = (tx.settlements || []).reduce((s, p) => s + Number(p.amount), 0);
+          return sum + Math.max(0, Number(tx.amount) - settled);
+        }, 0);
 
       return {
         totalBalance,

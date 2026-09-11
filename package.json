@@ -1,6 +1,6 @@
 {
   "name": "finance-tracker",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -40,6 +40,7 @@
     "@radix-ui/react-toggle-group": "^1.1.3",
     "@radix-ui/react-tooltip": "^1.2.0",
     "@tanstack/react-query": "^5.60.5",
+    "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -60,6 +61,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.2.5",
+    "uuid": "^14.0.2",
     "vaul": "^1.1.2",
     "vite-plugin-pwa": "^1.2.0",
     "wouter": "^3.3.5",

@@ -1,6 +1,6 @@
-﻿import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
-import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
+import { LoanSettlementModal } from "@/components/LoanSettlementModal";
+import type { Transaction } from "@shared/schema";
 
 const typeTabs = [
   { id: "expense", label: "Expenses" },
@@ -26,6 +28,7 @@ export default function HomePage() {
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
+  const [settlementTx, setSettlementTx] = useState<Transaction | null>(null);
 
 
   useEffect(() => {
@@ -256,34 +259,70 @@ export default function HomePage() {
                 {carriedLoans.map((tx) => {
                   const entry = getCategoryIcon(tx.categoryName);
                   const Icon = entry.icon;
+                  const totalAmount = Number(tx.amount);
+                  const totalSettled = roundMoney((tx.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0));
+                  const remaining = roundMoney(Math.max(0, totalAmount - totalSettled));
+                  const percent = totalAmount > 0 ? (totalSettled / totalAmount) * 100 : 0;
                   return (
-                    <button
-                      key={tx.id}
-                      onClick={() => tx.id && openEdit(tx)}
-                      className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-background/70 p-4 text-left transition hover:border-primary/30 hover:bg-background"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-card">
-                          <Icon className={cn("h-5 w-5", entry.className)} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{tx.categoryName || "Loan"}</p>
-                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">
-                              open
-                            </span>
+                    <div key={tx.id} className="overflow-hidden rounded-2xl border border-border/60 bg-background/70 transition hover:border-primary/20">
+                      <button
+                        onClick={() => tx.id && openEdit(tx)}
+                        className="flex w-full items-center justify-between p-4 text-left"
+                        aria-label={`Open loan ${tx.categoryName ?? ""} from ${tx.counterparty ?? "counterparty"}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-card">
+                            <Icon className={cn("h-5 w-5", entry.className)} />
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(tx.date), "MMM d, yyyy")} - {tx.paymentMethod}
-                          </p>
-                          {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{tx.categoryName || "Loan"}</p>
+                              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                {tx.loanStatus ?? "open"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(tx.date), "MMM d, yyyy")} · {tx.paymentMethod}
+                            </p>
+                            {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
+                            <div className="mt-2 space-y-1">
+                              <div
+                                className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                                role="progressbar"
+                                aria-valuenow={Math.round(percent)}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              >
+                                <div
+                                  className={cn(
+                                    "h-full rounded-full transition-all duration-500",
+                                    tx.loanStatus === "partial" ? "bg-amber-400" : "bg-rose-400"
+                                  )}
+                                  style={{ width: `${Math.min(100, percent)}%` }}
+                                />
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">
+                                {Math.round(percent)}% paid · {currency}{formatMoney(remaining)} left
+                              </p>
+                            </div>
+                          </div>
                         </div>
+                        <p className="ml-3 shrink-0 font-semibold text-foreground">
+                          {tx.loanType === "borrow" ? "+" : "-"}
+                          {currency}{formatMoney(Number(tx.amount))}
+                        </p>
+                      </button>
+                      <div className="border-t border-border/40 px-4 pb-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setSettlementTx(tx)}
+                          className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
+                        >
+                          <Zap className="h-3 w-3" />
+                          Pay now
+                        </button>
                       </div>
-                      <p className="font-semibold text-foreground">
-                        {tx.loanType === "borrow" ? "+" : "-"}
-                        {currency}{formatMoney(Number(tx.amount))}
-                      </p>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -321,35 +360,54 @@ export default function HomePage() {
                   {items.map((tx) => {
                     const entry = getCategoryIcon(tx.categoryName);
                     const Icon = entry.icon;
+                    const txSettled = tx.settlements?.reduce((s, st) => s + Number(st.amount), 0) || 0;
+                    const txRemaining = Math.max(0, Number(tx.amount) - txSettled);
+                    const isUnsettledLoan = tx.type === "loan" && tx.loanStatus !== "settled";
+
                     return (
-                      <button
+                      <div
                         key={tx.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => tx.id && openEdit(tx)}
-                        className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left transition hover:border-primary/30 hover:bg-card"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            tx.id && openEdit(tx);
+                          }
+                        }}
+                        className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left transition hover:border-primary/30 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-background">
                             <Icon className={cn("h-5 w-5", entry.className)} />
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
-                              {tx.type === "loan" && tx.loanStatus && (
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium truncate">{tx.categoryName || "Uncategorized"}</p>
+                              {tx.type === "loan" && (
                                 <span
                                   className={cn(
-                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase border",
                                     tx.loanStatus === "settled"
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : "bg-rose-100 text-rose-700"
+                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                      : tx.loanStatus === "partial"
+                                        ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                        : "bg-rose-500/10 text-rose-600 border-rose-500/20"
                                   )}
                                 >
-                                  {tx.loanStatus}
+                                  {tx.loanStatus === "settled" ? "Settled" : tx.loanStatus === "partial" ? "Partial" : "Unsettled"}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(tx.date), "p")} - {tx.paymentMethod}
                             </p>
+                            {tx.type === "loan" && tx.loanStatus === "partial" && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                Remaining: {currency}{formatMoney(txRemaining)}
+                              </p>
+                            )}
                             {tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate && (
                               <p className="text-xs text-muted-foreground/80">
                                 Settled {format(new Date(tx.settlementDate), "MMM d, yyyy")}
@@ -359,15 +417,34 @@ export default function HomePage() {
                               </p>
                             )}
                             {tx.counterparty && (
-                              <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>
+                              <p className="text-xs text-muted-foreground/80 truncate">{tx.counterparty}</p>
                             )}
                           </div>
                         </div>
-                        <p className="font-semibold text-foreground">
-                          {activeType === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
-                          {currency}{formatMoney(Number(tx.amount))}
-                        </p>
-                      </button>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <p className="font-semibold text-foreground">
+                              {activeType === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
+                              {currency}{formatMoney(Number(tx.amount))}
+                            </p>
+                          </div>
+                          {isUnsettledLoan && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSettlementTx(tx);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                              title="Settle or record partial payment"
+                              aria-label={`Settle loan ${tx.categoryName || ""}`}
+                            >
+                              <Zap className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Settle</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -376,7 +453,14 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {settlementTx && (
+        <LoanSettlementModal
+          open={!!settlementTx}
+          onOpenChange={(o) => { if (!o) setSettlementTx(null); }}
+          transaction={settlementTx}
+        />
+      )}
     </div>
   );
 }
-
