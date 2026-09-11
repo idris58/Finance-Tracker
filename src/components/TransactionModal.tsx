@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { CalendarIcon, CreditCard, Plus, Trash2, TrendingDown, TrendingUp, Zap } from "lucide-react";
+import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, Zap } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
 import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useSettings, useUpdateTransaction } from "@/hooks/use-finance";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -53,8 +53,6 @@ const typeStyles: Record<TxType, { active: string; icon: string }> = {
     icon: "text-indigo-500",
   },
 };
-
-const QUICK_AMOUNTS = [100, 500, 1000, 5000];
 
 export function TransactionModal({
   open,
@@ -181,11 +179,6 @@ export function TransactionModal({
     form.setValue("categoryId", 0);
   };
 
-  const handleQuickAmount = (amount: number) => {
-    const current = parseFloat(form.getValues("amount") || "0");
-    form.setValue("amount", String(current + amount), { shouldValidate: true });
-  };
-
   const watchAmount = form.watch("amount");
   const watchCategory = form.watch("categoryId");
   const watchLoanStatus = form.watch("loanStatus");
@@ -253,30 +246,6 @@ export function TransactionModal({
                       inputMode="decimal"
                       className="pl-8 text-xl font-bold tracking-tight"
                     />
-                  </div>
-                  {/* Quick amount chips */}
-                  <div className="flex gap-2 pt-1">
-                    {QUICK_AMOUNTS.map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => handleQuickAmount(amt)}
-                        aria-label={`Add ${currency}${amt}`}
-                        className="flex items-center gap-0.5 rounded-full border border-border/60 bg-card/70 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
-                      >
-                        <Plus className="h-2.5 w-2.5" />
-                        {formatMoney(amt)}
-                      </button>
-                    ))}
-                    {parseFloat(watchAmount || "0") > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => form.setValue("amount", "", { shouldValidate: true })}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-500 transition hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950 dark:hover:bg-rose-900"
-                      >
-                        Clear
-                      </button>
-                    )}
                   </div>
                   <FormMessage />
                 </FormItem>
