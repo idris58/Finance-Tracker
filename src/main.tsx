@@ -18,6 +18,15 @@ const handleAppInstalled = () => {
 window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 window.addEventListener("appinstalled", handleAppInstalled);
 
+// Request persistent storage to protect IndexedDB from browser eviction
+if (typeof navigator !== "undefined" && navigator.storage?.persist) {
+  navigator.storage.persisted().then((isPersisted) => {
+    if (!isPersisted) {
+      navigator.storage.persist().catch(() => {});
+    }
+  }).catch(() => {});
+}
+
 // Initialize database before rendering the app
 initializeDatabase().then(() => {
   createRoot(document.getElementById("root")!).render(<App />);

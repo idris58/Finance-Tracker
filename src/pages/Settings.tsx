@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { CheckCircle2, Cloud, Download, Link2, Monitor, Moon, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
+import { CheckCircle2, Cloud, Database, Download, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useUpdateSettings } from "@/hooks/use-finance";
+import { useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const directCloudConnect = useDirectCloudConnect();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
+  const { isPersisted, isSupported: isStorageSupported, isRequesting: isRequestingStorage, requestPersist } = useStoragePersistence();
   const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
 
@@ -253,6 +254,92 @@ export default function SettingsPage() {
                   className="hidden"
                   onChange={handleFileChange}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/60" />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold">Data eviction protection</h3>
+                <p className="text-sm text-muted-foreground">
+                  Prevent browsers (especially Safari & Chrome) from wiping your offline data when disk space gets low.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                      isPersisted === true
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : isPersisted === false
+                        ? "bg-amber-500/10 text-amber-500"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {isPersisted === true ? (
+                      <ShieldCheck className="h-5 w-5" />
+                    ) : (
+                      <ShieldAlert className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {isPersisted === true
+                          ? "Storage is persistent"
+                          : isPersisted === false
+                          ? "Storage is best-effort (evictable)"
+                          : "Checking storage status..."}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          isPersisted === true
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : isPersisted === false
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {isPersisted === true
+                          ? "Protected"
+                          : isPersisted === false
+                          ? "Unprotected"
+                          : "Checking"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isPersisted === true
+                        ? "Your IndexedDB data will not be cleared automatically by the browser."
+                        : !isStorageSupported
+                        ? "Persistent storage API is not supported in this browser. Regular cloud or manual backups are recommended."
+                        : "The browser may evict local data after inactivity or during storage cleanup. Click Protect to request permanent storage."}
+                    </p>
+                  </div>
+                </div>
+
+                {isStorageSupported && isPersisted === false && (
+                  <Button
+                    onClick={() => requestPersist()}
+                    disabled={isRequestingStorage}
+                    className="shrink-0 rounded-2xl"
+                    size="sm"
+                  >
+                    {isRequestingStorage ? (
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                    )}
+                    Protect data
+                  </Button>
+                )}
               </div>
             </div>
           </div>

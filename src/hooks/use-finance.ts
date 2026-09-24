@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
@@ -756,6 +756,101 @@ export function useCloudRestoreLatest() {
   });
 }
 
+export function useStoragePersistence() {
+  const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
+  const [isSupported, setIsSupported] = useState<boolean>(true);
+  const [isRequesting, setIsRequesting] = useState<boolean>(false);
+  const { toast } = useToast();
+
+  const checkStatus = useCallback(async () => {
+    if (typeof window === "undefined" || !navigator.storage?.persisted) {
+      setIsSupported(false);
+      setIsPersisted(false);
+      return false;
+    }
+
+    try {
+      const persisted = await navigator.storage.persisted();
+      setIsPersisted(persisted);
+      return persisted;
+    } catch {
+      setIsSupported(false);
+      setIsPersisted(false);
+      return false;
+    }
+  }, []);
+
+  const requestPersist = useCallback(async () => {
+    if (typeof window === "undefined" || !navigator.storage?.persist) {
+      setIsSupported(false);
+      toast({
+        title: "Storage persistence not supported",
+        description: "Your browser does not support persistent storage requests.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setIsRequesting(true);
+    try {
+      const granted = await navigator.storage.persist();
+      setIsPersisted(granted);
+      if (granted) {
+        toast({
+          title: "Storage protected",
+          description: "IndexedDB data is now marked persistent and protected from eviction.",
+        });
+      } else {
+        toast({
+          title: "Persistence not granted",
+          description: "Browser declined persistence. PWA install or bookmarking may help grant it.",
+        });
+      }
+      return granted;
+    } catch (err: any) {
+      toast({
+        title: "Persistence request failed",
+        description: err?.message || "Could not request storage persistence.",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsRequesting(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.storage?.persisted) {
+      setIsSupported(false);
+      return;
+    }
+
+    // Auto-check and request persistence if not already granted
+    navigator.storage.persisted()
+      .then((persisted) => {
+        setIsPersisted(persisted);
+        if (!persisted && navigator.storage?.persist) {
+          navigator.storage.persist().then((granted) => {
+            setIsPersisted(granted);
+          }).catch(() => {
+            // Ignore error on automatic background request
+          });
+        }
+      })
+      .catch(() => {
+        setIsSupported(false);
+      });
+  }, []);
+
+  return {
+    isPersisted,
+    isSupported,
+    isRequesting,
+    requestPersist,
+    checkStatus,
+  };
+}
+
 export function useResetAllData() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -777,3 +872,4 @@ export function useResetAllData() {
     },
   });
 }
+
