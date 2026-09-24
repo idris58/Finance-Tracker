@@ -190,6 +190,13 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Transaction deleted", description: "Record removed successfully." });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Could not delete transaction.",
+        variant: "destructive",
+      });
+    },
   });
 }
 
@@ -273,6 +280,13 @@ export function useCreateAccount() {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account added", description: "New account created successfully." });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Account creation failed",
+        description: error?.message || "Could not create account.",
+        variant: "destructive",
+      });
+    },
   });
 }
 
@@ -288,6 +302,13 @@ export function useUpdateAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account updated", description: "Account updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Account update failed",
+        description: error?.message || "Could not update account.",
+        variant: "destructive",
+      });
     },
   });
 }
@@ -331,6 +352,52 @@ export function useTransferBetweenAccounts() {
     },
     onError: (error: any) => {
       toast({ title: "Transfer failed", description: error?.message || "Could not complete transfer.", variant: "destructive" });
+    },
+  });
+}
+
+// --- Balance Audit & Verification ---
+export function useBalanceAudit() {
+  return useQuery({
+    queryKey: ['balance-audit'],
+    queryFn: async () => {
+      return await storage.getBalanceAudit();
+    },
+    staleTime: 5000,
+  });
+}
+
+export function useRecomputeBalances() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      return await storage.recomputeAllBalances();
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['balance-audit'] });
+      const driftedCount = results.filter((r) => r.isDrifted).length;
+      if (driftedCount === 0) {
+        toast({
+          title: "Balances verified & synced",
+          description: "All account balances match their exact transaction and transfer history.",
+        });
+      } else {
+        toast({
+          title: "Balances reconciled",
+          description: `Reconciled ${driftedCount} drifted account balance(s).`,
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Balance verification failed",
+        description: error?.message || "Could not reconcile account balances.",
+        variant: "destructive",
+      });
     },
   });
 }

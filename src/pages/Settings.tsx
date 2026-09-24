@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { CheckCircle2, Cloud, Database, Download, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cloud, Database, Download, Link2, Monitor, Moon, RefreshCw, Scale, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
+import { useBalanceAudit, useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useRecomputeBalances, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,8 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
   const { isPersisted, isSupported: isStorageSupported, isRequesting: isRequestingStorage, requestPersist } = useStoragePersistence();
+  const balanceAudit = useBalanceAudit();
+  const recomputeBalances = useRecomputeBalances();
   const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
 
@@ -340,6 +342,83 @@ export default function SettingsPage() {
                     Protect data
                   </Button>
                 )}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/60" />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold">Account balance audit</h3>
+                <p className="text-sm text-muted-foreground">
+                  Verify that current account balances match the exact sum of all transactions, settlements, and transfers.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                      balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                        ? "bg-amber-500/10 text-amber-500"
+                        : "bg-emerald-500/10 text-emerald-500"
+                    )}
+                  >
+                    {balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted) ? (
+                      <AlertTriangle className="h-5 w-5" />
+                    ) : (
+                      <Scale className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {balanceAudit.isLoading
+                          ? "Auditing balances..."
+                          : balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                          ? "Balance drift detected"
+                          : "All balances in sync"}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        )}
+                      >
+                        {balanceAudit.isLoading
+                          ? "Checking"
+                          : balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                          ? "Drifted"
+                          : "Verified"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                        ? `${balanceAudit.data.filter((a) => a.isDrifted).length} account(s) have discrepancy between stored and transaction-derived balance. Click Recompute to fix.`
+                        : "Balances mathematically match all past transactions, settlements, and transfers without any drift."}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => recomputeBalances.mutate()}
+                  disabled={recomputeBalances.isPending}
+                  variant="outline"
+                  className="shrink-0 rounded-2xl"
+                  size="sm"
+                >
+                  <RefreshCw className={cn("mr-2 h-4 w-4", recomputeBalances.isPending && "animate-spin")} />
+                  {balanceAudit.data && balanceAudit.data.some((a) => a.isDrifted)
+                    ? "Reconcile balances"
+                    : "Verify & sync"}
+                </Button>
               </div>
             </div>
           </div>
