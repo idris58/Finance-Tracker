@@ -121,3 +121,74 @@ export type DashboardStatsResponse = {
   totalBorrow: number;
   totalLend: number;
 };
+
+// === BACKUP & EXPORT SCHEMA ===
+export const CURRENT_SCHEMA_VERSION = 1;
+
+export const loanSettlementBackupSchema = z.object({
+  id: z.string().optional(),
+  amount: z.union([z.string(), z.number()]).transform((v) => String(v)),
+  accountId: z.number().nullable().optional(),
+  date: z.union([z.date(), z.string()]),
+  note: z.string().nullable().optional(),
+});
+
+export const settingsBackupSchema = z.object({
+  id: z.number().optional(),
+  currencySymbol: z.string().default("৳"),
+  updatedAt: z.union([z.date(), z.string()]).optional(),
+});
+
+export const categoryBackupSchema = z.object({
+  id: z.number().optional(),
+  name: z.string().min(1, "Category name is required"),
+  color: z.string().default("#9e9e9e"),
+  type: transactionTypeSchema.default("expense"),
+});
+
+export const transactionBackupSchema = z.object({
+  id: z.number().optional(),
+  amount: z.union([z.string(), z.number()]).transform((v) => String(v)),
+  categoryId: z.number().nullable().optional(),
+  categoryName: z.string().nullable().optional(),
+  date: z.union([z.date(), z.string()]),
+  settlementDate: z.union([z.date(), z.string()]).nullable().optional(),
+  paymentMethod: z.string().optional().default("Cash"),
+  accountId: z.number().nullable().optional(),
+  loanSettlementAccountId: z.number().nullable().optional(),
+  counterparty: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  type: transactionTypeSchema.default("expense"),
+  loanType: loanTypeSchema.nullable().optional(),
+  loanStatus: loanStatusSchema.nullable().optional(),
+  settlements: z.array(loanSettlementBackupSchema).optional(),
+});
+
+export const accountBackupSchema = z.object({
+  id: z.number().optional(),
+  name: z.string().min(1, "Account name is required"),
+  type: z.enum(["Cash", "Bank", "Mobile"]).default("Cash"),
+  balance: z.union([z.string(), z.number()]).transform((v) => String(v)).default("0"),
+});
+
+export const transferBackupSchema = z.object({
+  id: z.number().optional(),
+  fromAccountId: z.number(),
+  toAccountId: z.number(),
+  amount: z.union([z.string(), z.number()]).transform((v) => String(v)),
+  note: z.string().nullable().optional(),
+  date: z.union([z.date(), z.string()]),
+});
+
+export const backupFileSchema = z.object({
+  schemaVersion: z.number().optional().default(CURRENT_SCHEMA_VERSION),
+  exportedAt: z.string().optional(),
+  settings: settingsBackupSchema.optional().default({ currencySymbol: "৳" }),
+  categories: z.array(categoryBackupSchema).default([]),
+  transactions: z.array(transactionBackupSchema).default([]),
+  accounts: z.array(accountBackupSchema).optional(),
+  transfers: z.array(transferBackupSchema).optional().default([]),
+});
+
+export type BackupData = z.infer<typeof backupFileSchema>;

@@ -3,17 +3,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
 import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud } from "@/lib/cloud-drive";
-import type { 
-  InsertTransaction, 
-  InsertAccount,
-  UpdateSettingsRequest,
-  Category,
-  Transaction,
-  Settings,
-  Account,
-  Transfer,
-  DashboardStatsResponse,
-  LoanSettlement,
+import { 
+  CURRENT_SCHEMA_VERSION,
+  backupFileSchema,
+  type BackupData,
+  type InsertTransaction, 
+  type InsertAccount,
+  type UpdateSettingsRequest,
+  type Category,
+  type Transaction,
+  type Settings,
+  type Account,
+  type Transfer,
+  type DashboardStatsResponse,
+  type LoanSettlement,
 } from "@shared/schema";
 
 const CLOUD_BACKUP_STATE_KEY = "cloudBackupState";
@@ -376,166 +379,17 @@ export function useStats() {
 
 // --- Data Management ---
 
-const normalizeString = (value: unknown) => {
-  if (value === undefined || value === null) return null;
-  return String(value);
-};
-
-const validateImportData = (data: any) => {
-  const errors: string[] = [];
-
-  if (!data || typeof data !== 'object') {
-    return { errors: ['Invalid file format.'], clean: null };
+const validateImportData = (raw: unknown): { errors: string[]; clean: BackupData | null } => {
+  const result = backupFileSchema.safeParse(raw);
+  if (!result.success) {
+    const errorMessages = result.error.errors.map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+      return `${path}: ${issue.message}`;
+    });
+    return { errors: errorMessages, clean: null };
   }
 
-  if (!data.settings || typeof data.settings !== 'object') {
-    errors.push('Missing settings object.');
-  }
-
-  const settings = data.settings || {};
-  if (settings.currencySymbol && typeof settings.currencySymbol !== 'string') {
-    errors.push('Settings.currencySymbol must be a string.');
-  }
-  if (!Array.isArray(data.categories)) {
-    errors.push('Categories must be an array.');
-  }
-
-  const categories = Array.isArray(data.categories) ? data.categories : [];
-  const cleanCategories = categories.map((cat: any, index: number) => {
-    if (!cat || typeof cat !== 'object') {
-      errors.push(`Category #${index + 1} is invalid.`);
-      return null;
-    }
-    if (!cat.name || typeof cat.name !== 'string') {
-      errors.push(`Category #${index + 1} is missing a name.`);
-    }
-    const type = cat.type ?? 'expense';
-    if (!['expense', 'income', 'loan'].includes(type)) {
-      errors.push(`Category "${cat.name || index + 1}" has invalid type.`);
-    }
-    return {
-      name: cat.name,
-      color: typeof cat.color === 'string' ? cat.color : '#9e9e9e',
-      type,
-    };
-  }).filter(Boolean);
-
-  if (!Array.isArray(data.transactions)) {
-    errors.push('Transactions must be an array.');
-  }
-
-  const transactions = Array.isArray(data.transactions) ? data.transactions : [];
-  const cleanTransactions = transactions.map((tx: any, index: number) => {
-    if (!tx || typeof tx !== 'object') {
-      errors.push(`Transaction #${index + 1} is invalid.`);
-      return null;
-    }
-    if (tx.amount === undefined || tx.amount === null || isNaN(Number(tx.amount))) {
-      errors.push(`Transaction #${index + 1} has invalid amount.`);
-    }
-    if (!tx.date || isNaN(new Date(tx.date).getTime())) {
-      errors.push(`Transaction #${index + 1} has invalid date.`);
-    }
-    if (tx.settlementDate && isNaN(new Date(tx.settlementDate).getTime())) {
-      errors.push(`Transaction #${index + 1} has invalid settlementDate.`);
-    }
-    if (tx.type && !['expense', 'income', 'loan'].includes(tx.type)) {
-      errors.push(`Transaction #${index + 1} has invalid type.`);
-    }
-    if (tx.loanType && !['borrow', 'lend'].includes(tx.loanType)) {
-      errors.push(`Transaction #${index + 1} has invalid loanType.`);
-    }
-    if (tx.loanStatus && !['open', 'partial', 'settled'].includes(tx.loanStatus)) {
-      errors.push(`Transaction #${index + 1} has invalid loanStatus.`);
-    }
-    return {
-      amount: normalizeString(tx.amount) ?? '0',
-      categoryId: typeof tx.categoryId === 'number' ? tx.categoryId : null,
-      categoryName: tx.categoryName ?? null,
-      date: tx.date,
-      settlementDate: tx.settlementDate ?? null,
-      paymentMethod: tx.paymentMethod ?? '',
-      accountId: typeof tx.accountId === 'number' ? tx.accountId : null,
-      loanSettlementAccountId: typeof tx.loanSettlementAccountId === 'number' ? tx.loanSettlementAccountId : null,
-      counterparty: tx.counterparty ?? null,
-      note: tx.note ?? null,
-      tags: Array.isArray(tx.tags) ? tx.tags.map((tag: any) => String(tag)).filter((tag: string) => tag.trim().length > 0) : [],
-      type: tx.type ?? 'expense',
-      loanType: tx.loanType ?? null,
-      loanStatus: tx.loanStatus ?? null,
-      settlements: Array.isArray(tx.settlements)
-        ? tx.settlements.map((s: any) => ({
-            id: String(s.id ?? ''),
-            amount: normalizeString(s.amount) ?? '0',
-            accountId: typeof s.accountId === 'number' ? s.accountId : null,
-            date: s.date,
-            note: s.note ?? null,
-          }))
-        : [],
-    };
-  }).filter(Boolean);
-
-  const accounts = Array.isArray(data.accounts) ? data.accounts : null;
-  const cleanAccounts = accounts ? accounts.map((acc: any, index: number) => {
-    if (!acc || typeof acc !== 'object') {
-      errors.push(`Account #${index + 1} is invalid.`);
-      return null;
-    }
-    if (!acc.name || typeof acc.name !== 'string') {
-      errors.push(`Account #${index + 1} is missing a name.`);
-    }
-    if (acc.type && !['Cash', 'Bank', 'Mobile'].includes(acc.type)) {
-      errors.push(`Account "${acc.name || index + 1}" has invalid type.`);
-    }
-    return {
-      id: typeof acc.id === 'number' ? acc.id : undefined,
-      name: acc.name,
-      type: acc.type ?? 'Cash',
-      balance: normalizeString(acc.balance) ?? '0',
-    };
-  }).filter(Boolean) : undefined;
-
-  const transfers = Array.isArray(data.transfers) ? data.transfers : [];
-  const cleanTransfers = transfers.map((item: any, index: number) => {
-    if (!item || typeof item !== 'object') {
-      errors.push(`Transfer #${index + 1} is invalid.`);
-      return null;
-    }
-    if (typeof item.fromAccountId !== 'number') {
-      errors.push(`Transfer #${index + 1} has invalid fromAccountId.`);
-    }
-    if (typeof item.toAccountId !== 'number') {
-      errors.push(`Transfer #${index + 1} has invalid toAccountId.`);
-    }
-    if (item.amount === undefined || item.amount === null || isNaN(Number(item.amount))) {
-      errors.push(`Transfer #${index + 1} has invalid amount.`);
-    }
-    if (!item.date || isNaN(new Date(item.date).getTime())) {
-      errors.push(`Transfer #${index + 1} has invalid date.`);
-    }
-    return {
-      id: typeof item.id === 'number' ? item.id : undefined,
-      fromAccountId: typeof item.fromAccountId === 'number' ? item.fromAccountId : 0,
-      toAccountId: typeof item.toAccountId === 'number' ? item.toAccountId : 0,
-      amount: normalizeString(item.amount) ?? '0',
-      note: item.note ?? null,
-      date: item.date,
-    };
-  }).filter(Boolean);
-
-  const clean = {
-    settings: {
-      id: settings.id,
-      currencySymbol: typeof settings.currencySymbol === 'string' ? settings.currencySymbol : '?',
-      updatedAt: settings.updatedAt,
-    },
-    categories: cleanCategories,
-    transactions: cleanTransactions,
-    accounts: cleanAccounts,
-    transfers: cleanTransfers,
-  };
-
-  return { errors, clean };
+  return { errors: [], clean: result.data };
 };
 
 export function useExportData() {
@@ -549,7 +403,15 @@ export function useExportData() {
       const accounts = await storage.getAccounts();
       const transfers = await storage.getTransfers();
 
-      const data = { settings, categories, transactions, accounts, transfers };
+      const data: BackupData = {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        settings,
+        categories,
+        transactions,
+        accounts,
+        transfers,
+      };
       
       // Trigger download
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -574,13 +436,12 @@ export function useImportData() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }) => {
-      const { errors, clean } = validateImportData(data as any);
+    mutationFn: async (data: unknown) => {
+      const { errors, clean } = validateImportData(data);
       if (errors.length > 0 || !clean) {
-        const message = errors.slice(0, 5).join(' ');
+        const message = errors.slice(0, 5).join('; ');
         throw new Error(message || 'Import file is invalid.');
       }
-      await storage.resetAllData();
       await storage.importData(clean as any);
       return { success: true, count: clean.transactions?.length || 0 };
     },
@@ -689,7 +550,15 @@ export function useCloudBackupNow() {
       const transactions = await storage.getTransactions();
       const accounts = await storage.getAccounts();
       const transfers = await storage.getTransfers();
-      const payload = { settings, categories, transactions, accounts, transfers };
+      const payload: BackupData = {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        settings,
+        categories,
+        transactions,
+        accounts,
+        transfers,
+      };
       const result = await uploadBackupToCloud(payload);
       return result.createdTime;
     },
@@ -721,11 +590,10 @@ export function useCloudRestoreLatest() {
   return useMutation({
     mutationFn: async () => {
       const result = await downloadLatestBackupFromCloud();
-      const { errors, clean } = validateImportData(result.data as any);
+      const { errors, clean } = validateImportData(result.data);
       if (errors.length > 0 || !clean) {
-        throw new Error(errors.slice(0, 5).join(" ") || "Cloud backup file is invalid.");
+        throw new Error(errors.slice(0, 5).join("; ") || "Cloud backup file is invalid.");
       }
-      await storage.resetAllData();
       await storage.importData(clean as any);
       return {
         count: clean.transactions?.length || 0,

@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer } from './db';
 import { roundMoney, toMoneyString } from './money';
 import type { LoanSettlement } from '@shared/schema';
@@ -611,57 +612,59 @@ export class LocalStorage implements IStorage {
   }
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void> {
-    const hasAccounts = Array.isArray(data.accounts) && data.accounts.length > 0;
-    const oldAccountIdToName = new Map<number, string>();
-    const nameToAccountId = new Map<string, number>();
+    await db.transaction('rw', [db.settings, db.categories, db.transactions, db.accounts, db.transfers], async () => {
+      // 1. Clear all existing data atomically within the transaction
+      await db.settings.clear();
+      await db.categories.clear();
+      await db.transactions.clear();
+      await db.accounts.clear();
+      await db.transfers.clear();
 
-    if (data.settings) {
-      await this.updateSettings({
-        currencySymbol: data.settings.currencySymbol,
-      });
-    }
+      // 2. Import Settings (or set default if missing)
+      if (data.settings && data.settings.currencySymbol) {
+        await db.settings.add({
+          currencySymbol: data.settings.currencySymbol,
+          updatedAt: data.settings.updatedAt ? new Date(data.settings.updatedAt) : new Date(),
+        });
+      } else {
+        await db.settings.add({
+          currencySymbol: '৳',
+          updatedAt: new Date(),
+        });
+      }
 
-    if (data.categories && data.categories.length > 0) {
-      for (const cat of data.categories) {
-        const existing = await db.categories.where('name').equals(cat.name).first();
-        if (existing) {
-          await db.categories.update(existing.id!, {
-            color: cat.color,
-            type: cat.type ?? 'expense',
-          });
-        } else {
+      // 3. Import Categories
+      if (data.categories && data.categories.length > 0) {
+        for (const cat of data.categories) {
           await db.categories.add({
             name: cat.name,
-            color: cat.color,
+            color: cat.color || '#9e9e9e',
             type: cat.type ?? 'expense',
           } as Category);
         }
       }
-    }
 
-    if (data.accounts && data.accounts.length > 0) {
-      for (const acc of data.accounts) {
-        if (acc.id !== undefined) {
-          oldAccountIdToName.set(acc.id, acc.name);
-        }
-        const existing = await db.accounts.where('name').equals(acc.name).first();
-        if (existing) {
-          await this.updateAccount(existing.id!, {
-            type: acc.type,
-            balance: acc.balance,
-          });
-        } else {
-          await this.createAccount({
+      // 4. Import Accounts (with old-to-new ID and name mappings)
+      const hasAccounts = Array.isArray(data.accounts) && data.accounts.length > 0;
+      const oldAccountIdToName = new Map<number, string>();
+      const nameToAccountId = new Map<string, number>();
+
+      if (hasAccounts) {
+        for (const acc of data.accounts!) {
+          if (acc.id !== undefined) {
+            oldAccountIdToName.set(acc.id, acc.name);
+          }
+          const id = await db.accounts.add({
             name: acc.name,
-            type: acc.type,
-            balance: acc.balance,
+            type: acc.type || 'Cash',
+            balance: String(acc.balance ?? '0'),
           });
+          nameToAccountId.set(acc.name, id);
         }
       }
-    }
 
-    if (data.transactions && data.transactions.length > 0) {
-      if (!hasAccounts) {
+      // 5. Inferred accounts if backup had no explicit accounts list
+      if (!hasAccounts && data.transactions && data.transactions.length > 0) {
         const inferredAccounts = new Set<string>();
         for (const tx of data.transactions) {
           if (tx.paymentMethod) inferredAccounts.add(tx.paymentMethod);
@@ -670,143 +673,142 @@ export class LocalStorage implements IStorage {
           inferredAccounts.add('Cash');
         }
         for (const name of inferredAccounts) {
-          const existing = await db.accounts.where('name').equals(name).first();
-          if (!existing) {
-            await this.createAccount({ name, type: name === 'Cash' ? 'Cash' : 'Bank', balance: '0' });
+          const id = await db.accounts.add({
+            name,
+            type: name === 'Cash' ? 'Cash' : 'Bank',
+            balance: '0',
+          });
+          nameToAccountId.set(name, id);
+        }
+      } else if (!hasAccounts) {
+        // Empty backup with no accounts - create default Cash account
+        const id = await db.accounts.add({ name: 'Cash', type: 'Cash', balance: '0' });
+        nameToAccountId.set('Cash', id);
+      }
+
+      // 6. Import Transactions
+      if (data.transactions && data.transactions.length > 0) {
+        for (const tx of data.transactions) {
+          let catId = tx.categoryId;
+          if (tx.categoryName) {
+            const cat = await db.categories.where('name').equals(tx.categoryName).first();
+            if (cat) catId = cat.id!;
+          }
+
+          let accountId = tx.accountId ?? null;
+          if (accountId && oldAccountIdToName.has(accountId)) {
+            const name = oldAccountIdToName.get(accountId)!;
+            accountId = nameToAccountId.get(name) ?? null;
+          }
+          if (!accountId && tx.paymentMethod) {
+            accountId = nameToAccountId.get(tx.paymentMethod) ?? null;
+          }
+
+          let settlementAccountId = tx.loanSettlementAccountId ?? null;
+          if (settlementAccountId && oldAccountIdToName.has(settlementAccountId)) {
+            const name = oldAccountIdToName.get(settlementAccountId)!;
+            settlementAccountId = nameToAccountId.get(name) ?? null;
+          }
+          if (!settlementAccountId && tx.loanStatus === 'settled') {
+            settlementAccountId = accountId ?? null;
+          }
+
+          // Remap settlement accountIds and ensure each settlement has a robust UUID
+          const remappedSettlements: LoanSettlement[] = (Array.isArray(tx.settlements) ? tx.settlements : []).map((s) => {
+            let sAccountId = s.accountId;
+            if (oldAccountIdToName.has(sAccountId)) {
+              const name = oldAccountIdToName.get(sAccountId)!;
+              sAccountId = nameToAccountId.get(name) ?? sAccountId;
+            }
+            return {
+              id: (s.id && s.id.trim().length > 0) ? s.id : uuidv4(),
+              amount: String(s.amount ?? '0'),
+              accountId: sAccountId,
+              date: s.date instanceof Date ? s.date : new Date(s.date),
+              note: s.note ?? null,
+            };
+          });
+
+          await db.transactions.add({
+            amount: String(tx.amount ?? '0'),
+            categoryId: catId ?? null,
+            categoryName: tx.categoryName ?? null,
+            date: new Date(tx.date),
+            settlementDate: tx.settlementDate ? new Date(tx.settlementDate) : null,
+            paymentMethod: tx.paymentMethod || 'Cash',
+            accountId,
+            loanSettlementAccountId: settlementAccountId,
+            counterparty: tx.counterparty ?? null,
+            note: tx.note ?? null,
+            tags: Array.isArray(tx.tags) ? tx.tags : [],
+            type: tx.type ?? 'expense',
+            loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
+            loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
+            settlements: remappedSettlements,
+          } as Transaction);
+        }
+      }
+
+      // 7. Import Transfers
+      if (data.transfers && data.transfers.length > 0) {
+        for (const item of data.transfers) {
+          let fromAccountId = item.fromAccountId;
+          if (oldAccountIdToName.has(fromAccountId)) {
+            const fromName = oldAccountIdToName.get(fromAccountId)!;
+            fromAccountId = nameToAccountId.get(fromName) ?? fromAccountId;
+          }
+
+          let toAccountId = item.toAccountId;
+          if (oldAccountIdToName.has(toAccountId)) {
+            const toName = oldAccountIdToName.get(toAccountId)!;
+            toAccountId = nameToAccountId.get(toName) ?? toAccountId;
+          }
+
+          const fromExists = await db.accounts.get(fromAccountId);
+          const toExists = await db.accounts.get(toAccountId);
+          if (!fromExists || !toExists) continue;
+
+          await db.transfers.add({
+            fromAccountId,
+            toAccountId,
+            amount: String(item.amount ?? '0'),
+            note: item.note ?? null,
+            date: item.date instanceof Date ? item.date : new Date(item.date),
+          });
+        }
+      }
+
+      // 8. Calculate balances if accounts were inferred from transactions
+      if (!hasAccounts && data.transactions && data.transactions.length > 0) {
+        const transactions = await db.transactions.toArray();
+        const accounts = await db.accounts.toArray();
+        const balanceMap = new Map<number, number>();
+        for (const account of accounts) {
+          if (account.id !== undefined) {
+            balanceMap.set(account.id, Number(account.balance || 0));
           }
         }
-      }
-
-      const accounts = await db.accounts.toArray();
-      for (const account of accounts) {
-        if (account.id !== undefined) {
-          nameToAccountId.set(account.name, account.id);
-        }
-      }
-
-      for (const tx of data.transactions) {
-        let catId = tx.categoryId;
-        if (tx.categoryName) {
-          const cat = await db.categories.where('name').equals(tx.categoryName).first();
-          if (cat) catId = cat.id!;
-        }
-
-        let accountId = tx.accountId ?? null;
-        if (accountId && oldAccountIdToName.has(accountId)) {
-          const name = oldAccountIdToName.get(accountId)!;
-          accountId = nameToAccountId.get(name) ?? null;
-        }
-        if (!accountId && tx.paymentMethod) {
-          accountId = nameToAccountId.get(tx.paymentMethod) ?? null;
-        }
-
-        let settlementAccountId = tx.loanSettlementAccountId ?? null;
-        if (settlementAccountId && oldAccountIdToName.has(settlementAccountId)) {
-          const name = oldAccountIdToName.get(settlementAccountId)!;
-          settlementAccountId = nameToAccountId.get(name) ?? null;
-        }
-        if (!settlementAccountId && tx.loanStatus === 'settled') {
-          settlementAccountId = accountId ?? null;
-        }
-
-        // Remap settlement accountIds
-        const remappedSettlements: LoanSettlement[] = (Array.isArray(tx.settlements) ? tx.settlements : []).map((s) => {
-          let sAccountId = s.accountId;
-          if (oldAccountIdToName.has(sAccountId)) {
-            const name = oldAccountIdToName.get(sAccountId)!;
-            sAccountId = nameToAccountId.get(name) ?? sAccountId;
+        for (const tx of transactions) {
+          if (!tx.accountId) continue;
+          const current = balanceMap.get(tx.accountId) ?? 0;
+          balanceMap.set(tx.accountId, roundMoney(current + this.getBalanceDelta(tx)));
+          // New-style settlements
+          if (tx.settlements && tx.settlements.length > 0) {
+            const impact = this.getSettlementsImpactByAccount(tx);
+            for (const [accId, delta] of impact.entries()) {
+              const cur = balanceMap.get(accId) ?? 0;
+              balanceMap.set(accId, roundMoney(cur + delta));
+            }
+          } else if (tx.loanSettlementAccountId) {
+            const settleCurrent = balanceMap.get(tx.loanSettlementAccountId) ?? 0;
+            balanceMap.set(tx.loanSettlementAccountId, roundMoney(settleCurrent + this.getSettlementDelta(tx)));
           }
-          return {
-            ...s,
-            accountId: sAccountId,
-            date: s.date instanceof Date ? s.date : new Date(s.date),
-          };
-        });
-
-        await db.transactions.add({
-          amount: tx.amount,
-          categoryId: catId ?? null,
-          categoryName: tx.categoryName ?? null,
-          date: new Date(tx.date),
-          settlementDate: tx.settlementDate ? new Date(tx.settlementDate) : null,
-          paymentMethod: tx.paymentMethod || 'Cash',
-          accountId,
-          loanSettlementAccountId: settlementAccountId,
-          counterparty: tx.counterparty ?? null,
-          note: tx.note ?? null,
-          tags: Array.isArray(tx.tags) ? tx.tags : [],
-          type: tx.type ?? 'expense',
-          loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
-          loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
-          settlements: remappedSettlements,
-        } as Transaction);
-      }
-    }
-
-    if (data.transfers && data.transfers.length > 0) {
-      const accounts = await db.accounts.toArray();
-      for (const account of accounts) {
-        if (account.id !== undefined) {
-          nameToAccountId.set(account.name, account.id);
+        }
+        for (const [id, balance] of balanceMap.entries()) {
+          await db.accounts.update(id, { balance: toMoneyString(balance) });
         }
       }
-
-      for (const item of data.transfers) {
-        let fromAccountId = item.fromAccountId;
-        if (oldAccountIdToName.has(fromAccountId)) {
-          const fromName = oldAccountIdToName.get(fromAccountId)!;
-          fromAccountId = nameToAccountId.get(fromName) ?? fromAccountId;
-        }
-
-        let toAccountId = item.toAccountId;
-        if (oldAccountIdToName.has(toAccountId)) {
-          const toName = oldAccountIdToName.get(toAccountId)!;
-          toAccountId = nameToAccountId.get(toName) ?? toAccountId;
-        }
-
-        const fromExists = await db.accounts.get(fromAccountId);
-        const toExists = await db.accounts.get(toAccountId);
-        if (!fromExists || !toExists) continue;
-
-        await db.transfers.add({
-          fromAccountId,
-          toAccountId,
-          amount: String(item.amount ?? '0'),
-          note: item.note ?? null,
-          date: item.date instanceof Date ? item.date : new Date(item.date),
-        });
-      }
-    }
-
-    if (!hasAccounts && data.transactions && data.transactions.length > 0) {
-      const transactions = await db.transactions.toArray();
-      const accounts = await db.accounts.toArray();
-      const balanceMap = new Map<number, number>();
-      for (const account of accounts) {
-        if (account.id !== undefined) {
-          balanceMap.set(account.id, Number(account.balance || 0));
-        }
-      }
-      for (const tx of transactions) {
-        if (!tx.accountId) continue;
-        const current = balanceMap.get(tx.accountId) ?? 0;
-        balanceMap.set(tx.accountId, roundMoney(current + this.getBalanceDelta(tx)));
-        // New-style settlements
-        if (tx.settlements && tx.settlements.length > 0) {
-          const impact = this.getSettlementsImpactByAccount(tx);
-          for (const [accId, delta] of impact.entries()) {
-            const cur = balanceMap.get(accId) ?? 0;
-            balanceMap.set(accId, roundMoney(cur + delta));
-          }
-        } else if (tx.loanSettlementAccountId) {
-          const settleCurrent = balanceMap.get(tx.loanSettlementAccountId) ?? 0;
-          balanceMap.set(tx.loanSettlementAccountId, roundMoney(settleCurrent + this.getSettlementDelta(tx)));
-        }
-      }
-      for (const [id, balance] of balanceMap.entries()) {
-        await this.updateAccount(id, { balance: toMoneyString(balance) });
-      }
-    }
+    });
   }
 
   async resetAllData(): Promise<void> {
