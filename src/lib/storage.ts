@@ -3,15 +3,6 @@ import { db, initializeDatabase, type Settings, type Category, type Transaction,
 import { roundMoney, toMoneyString } from './money';
 import type { LoanSettlement } from '@shared/schema';
 
-export interface BalanceAuditResult {
-  accountId: number;
-  accountName: string;
-  storedBalance: string;
-  computedBalance: string;
-  drift: number;
-  isDrifted: boolean;
-}
-
 export interface IStorage {
   // Settings
   getSettings(): Promise<Settings>;
@@ -39,10 +30,6 @@ export interface IStorage {
   deleteAccount(id: number): Promise<void>;
   transferBetweenAccounts(params: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }): Promise<void>;
   getTransfers(limit?: number): Promise<{ id?: number; fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }[]>;
-
-  // Balance Verification & Recomputation
-  getBalanceAudit(): Promise<BalanceAuditResult[]>;
-  recomputeAllBalances(): Promise<BalanceAuditResult[]>;
 
   // Bulk (for Import)
   importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void>;
@@ -651,89 +638,7 @@ export class LocalStorage implements IStorage {
     return mapped;
   }
 
-  /**
-   * Derives current balances for all accounts by replaying all transactions,
-   * settlements, and transfers. Computes drift against currently stored balance.
-   */
-  async getBalanceAudit(): Promise<BalanceAuditResult[]> {
-    const accounts = await db.accounts.toArray();
-    const transactions = await db.transactions.toArray();
-    const transfers = await db.transfers.toArray();
 
-    // Map of accountId -> calculated running balance
-    const computedMap = new Map<number, number>();
-    for (const acc of accounts) {
-      if (acc.id !== undefined) {
-        computedMap.set(acc.id, 0);
-      }
-    }
-
-    // 1. Process all transactions & settlements
-    for (const tx of transactions) {
-      if (tx.accountId && computedMap.has(tx.accountId)) {
-        const current = computedMap.get(tx.accountId) ?? 0;
-        computedMap.set(tx.accountId, roundMoney(current + this.getBalanceDelta(tx)));
-      }
-
-      // New-style settlements
-      if (tx.settlements && tx.settlements.length > 0) {
-        const impact = this.getSettlementsImpactByAccount(tx);
-        for (const [accId, delta] of impact.entries()) {
-          if (computedMap.has(accId)) {
-            const cur = computedMap.get(accId) ?? 0;
-            computedMap.set(accId, roundMoney(cur + delta));
-          }
-        }
-      } else if (tx.loanSettlementAccountId && computedMap.has(tx.loanSettlementAccountId)) {
-        // Legacy single settlement
-        const settleCurrent = computedMap.get(tx.loanSettlementAccountId) ?? 0;
-        computedMap.set(tx.loanSettlementAccountId, roundMoney(settleCurrent + this.getSettlementDelta(tx)));
-      }
-    }
-
-    // 2. Process all transfers
-    for (const tf of transfers) {
-      const tfAmount = Number(tf.amount || 0);
-      if (computedMap.has(tf.fromAccountId)) {
-        const fromCur = computedMap.get(tf.fromAccountId) ?? 0;
-        computedMap.set(tf.fromAccountId, roundMoney(fromCur - tfAmount));
-      }
-      if (computedMap.has(tf.toAccountId)) {
-        const toCur = computedMap.get(tf.toAccountId) ?? 0;
-        computedMap.set(tf.toAccountId, roundMoney(toCur + tfAmount));
-      }
-    }
-
-    return accounts.map((acc) => {
-      const accId = acc.id!;
-      const stored = roundMoney(Number(acc.balance || 0));
-      const computed = computedMap.get(accId) ?? 0;
-      const drift = roundMoney(stored - computed);
-      return {
-        accountId: accId,
-        accountName: acc.name,
-        storedBalance: toMoneyString(stored),
-        computedBalance: toMoneyString(computed),
-        drift,
-        isDrifted: Math.abs(drift) >= 0.005,
-      };
-    });
-  }
-
-  /**
-   * Recalculates and resets all account balances atomically to match exact
-   * sum of transactions, settlements, and transfers.
-   */
-  async recomputeAllBalances(): Promise<BalanceAuditResult[]> {
-    return await db.transaction('rw', [db.accounts, db.transactions, db.transfers], async () => {
-      const audit = await this.getBalanceAudit();
-      for (const item of audit) {
-        await db.accounts.update(item.accountId, { balance: item.computedBalance });
-      }
-      // Return fresh audit showing zero drift
-      return await this.getBalanceAudit();
-    });
-  }
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void> {
     await db.transaction('rw', [db.settings, db.categories, db.transactions, db.accounts, db.transfers], async () => {

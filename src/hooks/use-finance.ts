@@ -356,51 +356,7 @@ export function useTransferBetweenAccounts() {
   });
 }
 
-// --- Balance Audit & Verification ---
-export function useBalanceAudit() {
-  return useQuery({
-    queryKey: ['balance-audit'],
-    queryFn: async () => {
-      return await storage.getBalanceAudit();
-    },
-    staleTime: 5000,
-  });
-}
 
-export function useRecomputeBalances() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async () => {
-      return await storage.recomputeAllBalances();
-    },
-    onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-      queryClient.invalidateQueries({ queryKey: ['balance-audit'] });
-      const driftedCount = results.filter((r) => r.isDrifted).length;
-      if (driftedCount === 0) {
-        toast({
-          title: "Balances verified & synced",
-          description: "All account balances match their exact transaction and transfer history.",
-        });
-      } else {
-        toast({
-          title: "Balances reconciled",
-          description: `Reconciled ${driftedCount} drifted account balance(s).`,
-        });
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Balance verification failed",
-        description: error?.message || "Could not reconcile account balances.",
-        variant: "destructive",
-      });
-    },
-  });
-}
 
 // --- Stats ---
 export function useStats() {
