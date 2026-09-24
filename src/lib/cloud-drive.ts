@@ -2,7 +2,7 @@ const GOOGLE_GIS_SCRIPT = "https://accounts.google.com/gsi/client";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const PROFILE_SCOPES = "openid email";
 const BACKUP_PREFIX = "finance-backup-";
-const RETENTION_COUNT = 2;
+const RETENTION_COUNT = 5;
 
 type GoogleTokenResponse = {
   access_token?: string;
@@ -286,23 +286,29 @@ export const uploadBackupToCloud = async (backup: unknown) => {
   return { id: result.id, createdTime: result.createdTime ?? new Date().toISOString() };
 };
 
+export const listAllCloudBackups = async (): Promise<CloudBackupFileMeta[]> => {
+  return listBackupFiles();
+};
+
+export const downloadBackupById = async (fileId: string, fileMeta: CloudBackupFileMeta) => {
+  const token = await getValidToken();
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to download cloud backup.");
+  }
+  const data = await response.json();
+  return { data, file: fileMeta };
+};
+
 export const downloadLatestBackupFromCloud = async () => {
   const files = await listBackupFiles();
   const latest = files[0];
   if (!latest) {
     throw new Error("No cloud backup found.");
   }
-
-  const token = await getValidToken();
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${latest.id}?alt=media`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    throw new Error("Failed to download latest cloud backup.");
-  }
-
-  const data = await response.json();
-  return { data, file: latest };
+  return downloadBackupById(latest.id, latest);
 };

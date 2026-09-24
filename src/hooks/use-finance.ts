@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
 import { 
   CURRENT_SCHEMA_VERSION,
   backupFileSchema,
@@ -635,6 +635,58 @@ export function useCloudRestoreLatest() {
       toast({
         title: "Cloud restore complete",
         description: `Imported ${result.count} transactions from latest backup.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cloud restore failed",
+        description: error?.message || "Could not restore from Google Drive.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useCloudBackupList() {
+  return useQuery({
+    queryKey: ["cloud-backup-list"],
+    queryFn: async (): Promise<CloudBackupFileMeta[]> => {
+      return listAllCloudBackups();
+    },
+    enabled: false, // fetched on demand
+    staleTime: 30_000,
+  });
+}
+
+export function useCloudRestoreByFile() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (file: CloudBackupFileMeta) => {
+      const result = await downloadBackupById(file.id, file);
+      const { errors, clean } = validateImportData(result.data);
+      if (errors.length > 0 || !clean) {
+        throw new Error(errors.slice(0, 5).join("; ") || "Cloud backup file is invalid.");
+      }
+      await storage.importData(clean as any);
+      return {
+        count: clean.transactions?.length || 0,
+        restoredAt: result.file.createdTime,
+      };
+    },
+    onSuccess: (result) => {
+      const previous = readCloudBackupState();
+      setCloudAccountHint(previous.email ?? null);
+      writeCloudBackupState({
+        connected: true,
+        lastBackupAt: previous.lastBackupAt ?? result.restoredAt,
+        email: previous.email ?? null,
+      });
+      queryClient.invalidateQueries();
+      toast({
+        title: "Cloud restore complete",
+        description: `Imported ${result.count} transactions from selected backup.`,
       });
     },
     onError: (error: any) => {

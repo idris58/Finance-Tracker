@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { CheckCircle2, Cloud, Database, Download, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload } from "lucide-react";
+import { CheckCircle2, Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCloudBackupNow, useCloudBackupStatus, useCloudDisconnect, useCloudRestoreLatest, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
+import { useCloudBackupNow, useCloudBackupStatus, useCloudBackupList, useCloudDisconnect, useCloudRestoreLatest, useCloudRestoreByFile, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,10 @@ export default function SettingsPage() {
   const { isPersisted, isSupported: isStorageSupported, isRequesting: isRequestingStorage, requestPersist } = useStoragePersistence();
   const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
+  const [showRestorePicker, setShowRestorePicker] = useState(false);
+  const [pickerSelectedId, setPickerSelectedId] = useState<string | null>(null);
+  const cloudBackupList = useCloudBackupList();
+  const cloudRestoreByFile = useCloudRestoreByFile();
 
   const handleInstall = async () => {
     const outcome = await promptInstall();
@@ -68,6 +72,7 @@ export default function SettingsPage() {
   };
 
   return (
+    <>
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
         <div className="space-y-3">
@@ -185,31 +190,18 @@ export default function SettingsPage() {
                 >
                   <Cloud className="mr-2 h-4 w-4" /> Backup now
                 </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="rounded-2xl"
-                      disabled={!cloudStatus.data?.connected || cloudRestoreLatest.isPending}
-                    >
-                      <Download className="mr-2 h-4 w-4" /> Restore data
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="rounded-3xl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Restore latest cloud backup?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will replace your current local data with the latest backup from Google Drive.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => cloudRestoreLatest.mutate()}>
-                        Restore
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl"
+                  disabled={!cloudStatus.data?.connected || cloudBackupList.isFetching}
+                  onClick={() => {
+                    setPickerSelectedId(null);
+                    setShowRestorePicker(true);
+                    cloudBackupList.refetch();
+                  }}
+                >
+                  <History className="mr-2 h-4 w-4" /> Restore data
+                </Button>
               </div>
             </div>
           </div>
@@ -408,5 +400,136 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+
+    {/* ── Restore version picker modal ── */}
+    {showRestorePicker && (
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+        aria-modal="true"
+        role="dialog"
+        aria-label="Pick a cloud backup version to restore"
+      >
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowRestorePicker(false)}
+        />
+
+        {/* Panel */}
+        <div className="relative z-10 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-border/60 bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold">Choose backup version</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Up to 5 versions kept. Pick any to restore.</p>
+            </div>
+            <button
+              onClick={() => setShowRestorePicker(false)}
+              className="rounded-xl p-1.5 hover:bg-muted transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto px-3 py-3 space-y-2">
+            {cloudBackupList.isFetching && (
+              <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground text-sm">
+                <RefreshCw className="h-4 w-4 animate-spin" /> Loading backups…
+              </div>
+            )}
+            {!cloudBackupList.isFetching && cloudBackupList.data && cloudBackupList.data.length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">No cloud backups found.</p>
+            )}
+            {!cloudBackupList.isFetching && cloudBackupList.data?.map((file, idx) => {
+              const date = new Date(file.createdTime);
+              const isSelected = pickerSelectedId === file.id;
+              return (
+                <button
+                  key={file.id}
+                  onClick={() => setPickerSelectedId(isSelected ? null : file.id)}
+                  className={cn(
+                    "w-full text-left rounded-2xl border px-4 py-3 transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/10 ring-1 ring-primary"
+                      : "border-border/60 bg-background/50 hover:bg-muted/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {idx === 0 ? "Latest" : `Version ${cloudBackupList.data!.length - idx}`}
+                        {idx === 0 && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            newest
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {date.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+                        {" · "}
+                        {date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="h-4 w-4 shrink-0 rounded-full bg-primary flex items-center justify-center">
+                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="border-t border-border/60 px-4 py-3 flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-2xl"
+              onClick={() => setShowRestorePicker(false)}
+            >
+              Cancel
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="flex-1 rounded-2xl"
+                  disabled={!pickerSelectedId || cloudRestoreByFile.isPending}
+                >
+                  {cloudRestoreByFile.isPending ? (
+                    <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Restoring…</>
+                  ) : (
+                    <><Download className="mr-2 h-4 w-4" /> Restore</>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-3xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Replace all local data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will overwrite your current local data with the selected cloud backup. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      const file = cloudBackupList.data?.find((f) => f.id === pickerSelectedId);
+                      if (file) {
+                        cloudRestoreByFile.mutate(file, {
+                          onSuccess: () => setShowRestorePicker(false),
+                        });
+                      }
+                    }}
+                  >
+                    Restore
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
