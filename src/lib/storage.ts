@@ -158,6 +158,10 @@ export class LocalStorage implements IStorage {
 
   async createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
     return await db.transaction('rw', [db.categories, db.accounts, db.transactions], async () => {
+      if (!transaction.accountId || !(await db.accounts.get(transaction.accountId))) {
+        throw new Error('Select a valid account before saving the transaction.');
+      }
+
       if (transaction.categoryId && !transaction.categoryName) {
         const cat = await db.categories.get(transaction.categoryId);
         if (cat) {
@@ -228,6 +232,9 @@ export class LocalStorage implements IStorage {
         date: updates.date ? (updates.date instanceof Date ? updates.date : new Date(updates.date)) : existing.date,
         settlements: updates.settlements !== undefined ? updates.settlements : (existing.settlements ?? []),
       };
+      if (!merged.accountId || !(await db.accounts.get(merged.accountId))) {
+        throw new Error('Select a valid account before saving the transaction.');
+      }
       if (!Array.isArray(merged.tags)) {
         merged.tags = [];
       }

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, Zap } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
-import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useSettings, useUpdateTransaction } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useSettings, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettleme
       return num > 0;
     }, "Amount must be greater than 0"),
   categoryId: z.number().min(1, "Please select a category"),
+  accountId: z.number().positive("Please select an account"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -68,6 +69,7 @@ export function TransactionModal({
   const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
+  const { data: transactions } = useTransactions();
   const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
@@ -79,7 +81,8 @@ export function TransactionModal({
     .filter((tag) => tag.length > 0);
 
   const currency = settings?.currencySymbol || "৳";
-  const defaultAccountId = accounts?.[0]?.id ?? null;
+  const lastUsedAccountId = transactions?.find((item) => item.accountId && accounts?.some((account) => account.id === item.accountId))?.accountId;
+  const defaultAccountId = lastUsedAccountId ?? accounts?.[0]?.id;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -104,7 +107,9 @@ export function TransactionModal({
       form.reset({
         amount: transaction.amount?.toString() ?? "",
         categoryId: transaction.categoryId ?? 0,
-        accountId: transaction.accountId ?? defaultAccountId,
+        accountId: transaction.accountId && (accounts === undefined || accounts.some((account) => account.id === transaction.accountId))
+          ? transaction.accountId
+          : defaultAccountId,
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
         date: transaction.date ? new Date(transaction.date) : new Date(),
@@ -328,6 +333,7 @@ export function TransactionModal({
                         Balance: {currency}{formatMoney(Number(selectedAccount.balance || 0))}
                       </p>
                     )}
+                    <FormMessage />
                   </FormItem>
                 )}
               />

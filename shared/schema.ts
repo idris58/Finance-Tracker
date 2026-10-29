@@ -22,7 +22,7 @@ export const insertTransactionSchema = z.object({
   categoryName: z.string().optional().nullable(),
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
   settlementDate: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)).optional().nullable(),
-  accountId: z.number().optional().nullable(),
+  accountId: z.number().positive("Please select an account"),
   loanSettlementAccountId: z.number().optional().nullable(),
   counterparty: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
