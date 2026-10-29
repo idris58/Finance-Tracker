@@ -28,7 +28,7 @@ export default function HomePage() {
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
-  const [settlementTx, setSettlementTx] = useState<Transaction | null>(null);
+  const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -40,6 +40,7 @@ export default function HomePage() {
   const { data: accounts } = useAccounts();
   const { data: transactions, isLoading } = useTransactions({ month: monthKey });
   const { data: allTransactions } = useTransactions();
+  const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { openEdit, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
@@ -323,7 +324,7 @@ export default function HomePage() {
                       <div className="border-t border-border/40 px-4 pb-3 pt-2">
                         <button
                           type="button"
-                          onClick={() => setSettlementTx(tx)}
+                          onClick={() => setSettlementTxId(tx.id ?? null)}
                           className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
                         >
                           <Zap className="h-3 w-3" />
@@ -433,7 +434,7 @@ export default function HomePage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSettlementTx(tx);
+                                setSettlementTxId(tx.id ?? null);
                               }}
                               className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
                               title="Settle or record partial payment"
@@ -454,10 +455,10 @@ export default function HomePage() {
         )}
       </div>
 
-      {settlementTx && (
+      {settlementTxId !== null && settlementTx && (
         <LoanSettlementModal
-          open={!!settlementTx}
-          onOpenChange={(o) => { if (!o) setSettlementTx(null); }}
+          open={settlementTxId !== null}
+          onOpenChange={(o) => { if (!o) setSettlementTxId(null); }}
           transaction={settlementTx}
         />
       )}

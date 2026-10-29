@@ -81,7 +81,7 @@ export default function TransactionsPage() {
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  const [settlementTx, setSettlementTx] = useState<Transaction | null>(null);
+  const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
 
   useEffect(() => {
     if (monthFilter === "all") {
@@ -95,6 +95,7 @@ export default function TransactionsPage() {
     month: monthFilter === "all" ? undefined : monthFilter,
   });
   const { data: allTransactions } = useTransactions();
+  const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
   const { data: settings } = useSettings();
   const { openEdit, openNew } = useTransactionEditor();
@@ -391,7 +392,7 @@ export default function TransactionsPage() {
                 <div className="border-t border-border/40 px-4 pb-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setSettlementTx(tx)}
+                    onClick={() => setSettlementTxId(tx.id ?? null)}
                     className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
                     aria-label={`Record a payment for loan from ${tx.counterparty ?? "counterparty"}`}
                   >
@@ -406,10 +407,10 @@ export default function TransactionsPage() {
       </div>
 
       {/* Loan Settlement Modal */}
-      {settlementTx && (
+      {settlementTxId !== null && settlementTx && (
         <LoanSettlementModal
-          open={!!settlementTx}
-          onOpenChange={(o) => { if (!o) setSettlementTx(null); }}
+          open={settlementTxId !== null}
+          onOpenChange={(o) => { if (!o) setSettlementTxId(null); }}
           transaction={settlementTx}
         />
       )}
