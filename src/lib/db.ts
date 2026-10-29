@@ -50,12 +50,23 @@ export interface Transfer {
   date: Date;
 }
 
+export interface ImportSnapshot {
+  id?: number;
+  createdAt: Date;
+  settings: Settings[];
+  categories: Category[];
+  transactions: Transaction[];
+  accounts: Account[];
+  transfers: Transfer[];
+}
+
 class FinanceDatabase extends Dexie {
   settings!: Table<Settings, number>;
   categories!: Table<Category, number>;
   transactions!: Table<Transaction, number>;
   accounts!: Table<Account, number>;
   transfers!: Table<Transfer, number>;
+  importSnapshots!: Table<ImportSnapshot, number>;
 
   constructor() {
     super('FinanceTracker');
@@ -284,6 +295,15 @@ class FinanceDatabase extends Dexie {
       transactions: '++id, date, categoryId, type, accountId',
       accounts: '++id, &name',
       transfers: '++id, date, fromAccountId, toAccountId',
+    });
+
+    this.version(14).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId',
+      accounts: '++id, &name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+      importSnapshots: '++id, createdAt',
     });
   }
 }

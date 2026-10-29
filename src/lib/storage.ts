@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer } from './db';
+import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer, type ImportSnapshot } from './db';
 import { roundMoney, toMoneyString } from './money';
 import type { LoanSettlement } from '@shared/schema';
 
@@ -551,7 +551,18 @@ export class LocalStorage implements IStorage {
 
 
   async importData(data: { settings: Settings; categories: Category[]; transactions: Transaction[]; accounts?: Account[]; transfers?: Transfer[] }): Promise<void> {
-    await db.transaction('rw', [db.settings, db.categories, db.transactions, db.accounts, db.transfers], async () => {
+    await db.transaction('rw', [db.settings, db.categories, db.transactions, db.accounts, db.transfers, db.importSnapshots], async () => {
+      const snapshot: ImportSnapshot = {
+        createdAt: new Date(),
+        settings: await db.settings.toArray(),
+        categories: await db.categories.toArray(),
+        transactions: await db.transactions.toArray(),
+        accounts: await db.accounts.toArray(),
+        transfers: await db.transfers.toArray(),
+      };
+      await db.importSnapshots.clear();
+      await db.importSnapshots.add(snapshot);
+
       // 1. Clear all existing data atomically within the transaction
       await db.settings.clear();
       await db.categories.clear();
@@ -761,12 +772,33 @@ export class LocalStorage implements IStorage {
     });
   }
 
+  async restoreLastImportSnapshot(): Promise<void> {
+    await db.transaction('rw', [db.settings, db.categories, db.transactions, db.accounts, db.transfers, db.importSnapshots], async () => {
+      const snapshot = await db.importSnapshots.orderBy('createdAt').last();
+      if (!snapshot) throw new Error('No pre-import snapshot is available to restore.');
+
+      await db.settings.clear();
+      await db.categories.clear();
+      await db.transactions.clear();
+      await db.accounts.clear();
+      await db.transfers.clear();
+
+      if (snapshot.settings.length) await db.settings.bulkPut(snapshot.settings);
+      if (snapshot.categories.length) await db.categories.bulkPut(snapshot.categories);
+      if (snapshot.transactions.length) await db.transactions.bulkPut(snapshot.transactions);
+      if (snapshot.accounts.length) await db.accounts.bulkPut(snapshot.accounts);
+      if (snapshot.transfers.length) await db.transfers.bulkPut(snapshot.transfers);
+      await db.importSnapshots.delete(snapshot.id!);
+    });
+  }
+
   async resetAllData(): Promise<void> {
     await db.settings.clear();
     await db.categories.clear();
     await db.transactions.clear();
     await db.accounts.clear();
     await db.transfers.clear();
+    await db.importSnapshots.clear();
 
     await initializeDatabase();
   }

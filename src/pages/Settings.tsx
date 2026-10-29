@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePwaInstall } from "@/lib/pwa";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 const currencies = [
   { symbol: "৳", label: "BDT (৳)" },
@@ -20,6 +21,7 @@ const currencies = [
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { data: settings } = useSettings();
+  const { toast } = useToast();
   const updateSettings = useUpdateSettings();
   const exportData = useExportData();
   const importData = useImportData();
@@ -65,10 +67,19 @@ export default function SettingsPage() {
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const data = JSON.parse(text);
-    importData.mutate(data);
-    event.target.value = "";
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      importData.mutate(data);
+    } catch (error) {
+      toast({
+        title: "Import failed",
+        description: error instanceof Error ? error.message : "Could not read or parse the selected backup file.",
+        variant: "destructive",
+      });
+    } finally {
+      event.target.value = "";
+    }
   };
 
   return (

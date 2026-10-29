@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { createElement } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction, type ToastActionElement } from "@/components/ui/toast";
 import { storage } from "@/lib/storage";
 import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
 import { 
@@ -403,6 +405,15 @@ export function useStats() {
 // --- Data Management ---
 
 const validateImportData = (raw: unknown): { errors: string[]; clean: BackupData | null } => {
+  if (raw && typeof raw === 'object' && 'schemaVersion' in raw) {
+    const schemaVersion = (raw as { schemaVersion?: unknown }).schemaVersion;
+    if (typeof schemaVersion === 'number' && schemaVersion > CURRENT_SCHEMA_VERSION) {
+      return {
+        errors: [`This backup uses schema version ${schemaVersion}, newer than this app supports (${CURRENT_SCHEMA_VERSION}). Update the app before importing it.`],
+        clean: null,
+      };
+    }
+  }
   const result = backupFileSchema.safeParse(raw);
   if (!result.success) {
     const errorMessages = result.error.errors.map((issue) => {
@@ -414,6 +425,28 @@ const validateImportData = (raw: unknown): { errors: string[]; clean: BackupData
 
   return { errors: [], clean: result.data };
 };
+
+function showUndoableImportToast(
+  toast: ReturnType<typeof useToast>["toast"],
+  queryClient: ReturnType<typeof useQueryClient>,
+  description: string
+) {
+  const undoImport = async () => {
+    try {
+      await storage.restoreLastImportSnapshot();
+      await queryClient.invalidateQueries();
+      toast({ title: "Import undone", description: "Your previous data has been restored." });
+    } catch (error: any) {
+      toast({ title: "Undo failed", description: error?.message || "Could not restore the pre-import data.", variant: "destructive" });
+    }
+  };
+
+  toast({
+    title: "Import successful",
+    description,
+    action: createElement(ToastAction, { altText: "Undo import", onClick: () => { void undoImport(); } }, "Undo import") as unknown as ToastActionElement,
+  });
+}
 
 export function useExportData() {
   const { toast } = useToast();
@@ -470,7 +503,7 @@ export function useImportData() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries();
-      toast({ title: "Import successful", description: `Imported ${result.count} transactions.` });
+      showUndoableImportToast(toast, queryClient, `Imported ${result.count} transactions.`);
     },
     onError: (error: any) => {
       toast({
@@ -632,10 +665,7 @@ export function useCloudRestoreLatest() {
         email: previous.email ?? null,
       });
       queryClient.invalidateQueries();
-      toast({
-        title: "Cloud restore complete",
-        description: `Imported ${result.count} transactions from latest backup.`,
-      });
+      showUndoableImportToast(toast, queryClient, `Imported ${result.count} transactions from latest backup.`);
     },
     onError: (error: any) => {
       toast({
@@ -684,10 +714,7 @@ export function useCloudRestoreByFile() {
         email: previous.email ?? null,
       });
       queryClient.invalidateQueries();
-      toast({
-        title: "Cloud restore complete",
-        description: `Imported ${result.count} transactions from selected backup.`,
-      });
+      showUndoableImportToast(toast, queryClient, `Imported ${result.count} transactions from selected backup.`);
     },
     onError: (error: any) => {
       toast({
