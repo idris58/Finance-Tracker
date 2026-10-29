@@ -99,11 +99,16 @@ export default function AccountsPage() {
   const handleSubmit = () => {
     if (!form.name.trim()) return;
     if (form.id) {
-      updateAccount({ id: form.id, data: { name: form.name, type: form.type, balance: form.balance } });
+      updateAccount(
+        { id: form.id, data: { name: form.name, type: form.type, balance: form.balance } },
+        { onSuccess: () => handleOpenChange(false) }
+      );
     } else {
-      createAccount({ name: form.name, type: form.type, balance: form.balance });
+      createAccount(
+        { name: form.name, type: form.type, balance: form.balance },
+        { onSuccess: () => handleOpenChange(false) }
+      );
     }
-    handleOpenChange(false);
   };
 
   const resetTransferForm = () => {
@@ -323,132 +328,73 @@ export default function AccountsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={open} onOpenChange={handleOpenChange}>
-              <DialogTrigger asChild>
-                <Button className="hidden rounded-full whitespace-nowrap sm:inline-flex">
-                  <Plus className="mr-2 h-4 w-4" /> Add account
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Account name</Label>
-                    <Input
-                      value={form.name}
-                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                      placeholder="e.g. Cash, Bank"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {accountTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Balance</Label>
-                    <Input
-                      type="number"
-                      value={form.balance}
-                      onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
-                    />
-                  </div>
-                <div className={form.id ? "flex gap-2" : ""}>
-                  {form.id && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
-                    </Button>
-                  )}
-                  <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
-                    {form.id ? "Save changes" : "Create account"}
-                  </Button>
-                </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setOpen(true)} className="hidden rounded-full whitespace-nowrap sm:inline-flex">
+              <Plus className="mr-2 h-4 w-4" /> Add account
+            </Button>
           </div>
         </div>
 
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogTrigger asChild>
-            <Button className="w-full rounded-full whitespace-nowrap sm:hidden">
-              <Plus className="mr-2 h-4 w-4" /> Add account
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="rounded-3xl">
-            <DialogHeader>
-              <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Account name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="e.g. Cash, Bank"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accountTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Balance</Label>
-                <Input
-                  type="number"
-                  value={form.balance}
-                  onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
-                />
-              </div>
-              <div className={form.id ? "flex gap-2" : ""}>
-                {form.id && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                  </Button>
-                )}
-                <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
-                  {form.id ? "Save changes" : "Create account"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setOpen(true)} className="w-full rounded-full whitespace-nowrap sm:hidden">
+          <Plus className="mr-2 h-4 w-4" /> Add account
+        </Button>
       </div>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Account name</Label>
+              <Input
+                value={form.name}
+                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="e.g. Cash, Bank"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountForm["type"] }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Balance</Label>
+              <Input
+                type="number"
+                value={form.balance}
+                onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
+              />
+            </div>
+            <div className={form.id ? "flex gap-2" : ""}>
+              {form.id && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </Button>
+              )}
+              <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
+                {form.id ? "Save changes" : "Create account"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
