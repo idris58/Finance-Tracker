@@ -184,20 +184,6 @@ export class LocalStorage implements IStorage {
 
       transaction.loanStatus = transaction.type === 'loan' ? this.computeLoanStatus(transaction as Transaction) : null;
 
-      if (transaction.accountId) {
-        const account = await db.accounts.get(transaction.accountId);
-        if (account) {
-          transaction.paymentMethod = account.name;
-        }
-      }
-
-      if (!transaction.accountId && transaction.paymentMethod) {
-        const account = await db.accounts.where('name').equals(transaction.paymentMethod).first();
-        if (account) {
-          transaction.accountId = account.id!;
-        }
-      }
-
       const id = await db.transactions.add({
         ...transaction,
         date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
@@ -270,20 +256,6 @@ export class LocalStorage implements IStorage {
         merged.loanType = merged.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
       }
       merged.loanStatus = merged.type === 'loan' ? this.computeLoanStatus(merged) : null;
-
-      if (merged.accountId) {
-        const account = await db.accounts.get(merged.accountId);
-        if (account) {
-          merged.paymentMethod = account.name;
-        }
-      }
-
-      if (!merged.accountId && merged.paymentMethod) {
-        const account = await db.accounts.where('name').equals(merged.paymentMethod).first();
-        if (account) {
-          merged.accountId = account.id!;
-        }
-      }
 
       const oldDelta = this.getBalanceDelta(existing);
       const newDelta = this.getBalanceDelta(merged);
@@ -473,26 +445,41 @@ export class LocalStorage implements IStorage {
   }
 
   async createAccount(account: Omit<Account, 'id'>): Promise<Account> {
-    const normalized = { ...account, balance: toMoneyString(Number(account.balance || 0)) };
-    const id = await db.accounts.add(normalized as Account);
-    const created = await db.accounts.get(id);
-    if (!created) {
-      throw new Error('Failed to create account');
-    }
-    return created;
+    return await db.transaction('rw', [db.accounts], async () => {
+      const name = account.name.trim();
+      await this.assertAccountNameAvailable(name);
+      const id = await db.accounts.add({ ...account, name, balance: toMoneyString(Number(account.balance || 0)) });
+      const created = await db.accounts.get(id);
+      if (!created) throw new Error('Failed to create account');
+      return created;
+    });
   }
 
   async updateAccount(id: number, updates: Partial<Omit<Account, 'id'>>): Promise<Account> {
-    const normalized = {
-      ...updates,
-      ...(updates.balance !== undefined ? { balance: toMoneyString(Number(updates.balance || 0)) } : {}),
-    };
-    await db.accounts.update(id, normalized);
-    const updated = await db.accounts.get(id);
-    if (!updated) {
-      throw new Error('Account not found');
-    }
-    return updated;
+    return await db.transaction('rw', [db.accounts], async () => {
+      const existing = await db.accounts.get(id);
+      if (!existing) throw new Error('Account not found');
+      const name = updates.name?.trim();
+      if (name !== undefined) await this.assertAccountNameAvailable(name, id);
+      const normalized = {
+        ...updates,
+        ...(name !== undefined ? { name } : {}),
+        ...(updates.balance !== undefined ? { balance: toMoneyString(Number(updates.balance || 0)) } : {}),
+      };
+      await db.accounts.update(id, normalized);
+      const updated = await db.accounts.get(id);
+      if (!updated) throw new Error('Account not found');
+      return updated;
+    });
+  }
+
+  private async assertAccountNameAvailable(name: string, exceptId?: number): Promise<void> {
+    if (!name) throw new Error('Account name is required');
+    const normalizedName = name.toLocaleLowerCase();
+    const duplicate = await db.accounts.toCollection().filter((account) =>
+      account.id !== exceptId && account.name.trim().toLocaleLowerCase() === normalizedName
+    ).first();
+    if (duplicate) throw new Error('An account with this name already exists. Choose a unique name.');
   }
 
   async deleteAccount(id: number): Promise<void> {
@@ -502,13 +489,12 @@ export class LocalStorage implements IStorage {
         throw new Error('Account not found');
       }
       const directCount = await db.transactions.where('accountId').equals(id).count();
-      const nameCount = await db.transactions.where('paymentMethod').equals(account.name).count();
       const settlementCount = await db.transactions.toCollection().filter((transaction) =>
         (transaction.settlements ?? []).some((settlement) => settlement.accountId === id)
       ).count();
       const outgoingTransferCount = await db.transfers.where('fromAccountId').equals(id).count();
       const incomingTransferCount = await db.transfers.where('toAccountId').equals(id).count();
-      if (directCount > 0 || settlementCount > 0 || nameCount > 0 || outgoingTransferCount > 0 || incomingTransferCount > 0) {
+      if (directCount > 0 || settlementCount > 0 || outgoingTransferCount > 0 || incomingTransferCount > 0) {
         throw new Error('Account has linked transactions, settlements, or transfers. Remove or edit those records first.');
       }
       await db.accounts.delete(id);
@@ -604,15 +590,23 @@ export class LocalStorage implements IStorage {
 
       if (hasAccounts) {
         for (const acc of data.accounts!) {
+          const baseName = acc.name.trim() || 'Account';
+          let importedName = baseName;
+          let suffix = 2;
+          while (await db.accounts.toCollection().filter((existing) =>
+            existing.name.toLocaleLowerCase() === importedName.toLocaleLowerCase()
+          ).first()) {
+            importedName = `${baseName} (${suffix++})`;
+          }
           if (acc.id !== undefined) {
-            oldAccountIdToName.set(acc.id, acc.name);
+            oldAccountIdToName.set(acc.id, importedName);
           }
           const id = await db.accounts.add({
-            name: acc.name,
+            name: importedName,
             type: acc.type || 'Cash',
             balance: String(acc.balance ?? '0'),
           });
-          nameToAccountId.set(acc.name, id);
+          nameToAccountId.set(importedName, id);
         }
       }
 
@@ -696,7 +690,6 @@ export class LocalStorage implements IStorage {
             categoryId: catId ?? null,
             categoryName: tx.categoryName ?? null,
             date: new Date(tx.date),
-            paymentMethod: tx.paymentMethod || 'Cash',
             accountId,
             counterparty: tx.counterparty ?? null,
             note: tx.note ?? null,

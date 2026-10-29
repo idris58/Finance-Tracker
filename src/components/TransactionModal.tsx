@@ -79,15 +79,14 @@ export function TransactionModal({
     .filter((tag) => tag.length > 0);
 
   const currency = settings?.currencySymbol || "৳";
-  const cashAccount = accounts?.find((acc) => acc.name === "Cash");
+  const defaultAccountId = accounts?.[0]?.id ?? null;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: "",
       categoryId: 0,
-      paymentMethod: "Cash",
-      accountId: cashAccount?.id ?? null,
+      accountId: defaultAccountId,
       counterparty: "",
       note: "",
       date: new Date(),
@@ -105,8 +104,7 @@ export function TransactionModal({
       form.reset({
         amount: transaction.amount?.toString() ?? "",
         categoryId: transaction.categoryId ?? 0,
-        paymentMethod: transaction.paymentMethod ?? "Cash",
-        accountId: transaction.accountId ?? cashAccount?.id ?? null,
+        accountId: transaction.accountId ?? defaultAccountId,
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
         date: transaction.date ? new Date(transaction.date) : new Date(),
@@ -122,8 +120,7 @@ export function TransactionModal({
     form.reset({
       amount: "",
       categoryId: 0,
-      paymentMethod: "Cash",
-      accountId: cashAccount?.id ?? null,
+      accountId: defaultAccountId,
       counterparty: "",
       note: "",
       date: new Date(),
@@ -132,7 +129,7 @@ export function TransactionModal({
       tags: [],
     });
     setTagsInput("");
-  }, [open, cashAccount?.id, form, transaction]);
+  }, [open, defaultAccountId, form, transaction]);
 
   const onSubmit = (values: FormValues) => {
     const settledTotal = (transaction?.settlements ?? []).reduce((sum, settlement) => sum + Number(settlement.amount), 0);

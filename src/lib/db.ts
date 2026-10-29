@@ -22,7 +22,7 @@ export interface Transaction {
   categoryName?: string | null;
   date: Date;
   settlementDate?: Date | null;
-  paymentMethod: string;
+  paymentMethod?: string;
   accountId?: number | null;
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
@@ -243,6 +243,47 @@ class FinanceDatabase extends Dexie {
           delete record.settlementDate;
         });
       }
+    });
+
+    // Resolve legacy account names to IDs once, then stop indexing paymentMethod.
+    this.version(12).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+    }).upgrade(async (tx) => {
+      const accounts = await tx.table('accounts').toCollection().toArray();
+      const usedNames = new Set<string>();
+      for (const account of accounts) {
+        const originalName = String(account.name ?? '').trim() || 'Account';
+        let name = originalName;
+        let suffix = 2;
+        while (usedNames.has(name.toLocaleLowerCase())) name = `${originalName} (${suffix++})`;
+        usedNames.add(name.toLocaleLowerCase());
+        if (name !== account.name) await tx.table('accounts').update(account.id, { name });
+      }
+
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const row of transactions) {
+        const legacyName = typeof row.paymentMethod === 'string' ? row.paymentMethod.trim() : '';
+        if (row.accountId == null && legacyName) {
+          const matchingAccounts = accounts.filter((account: { name: string }) => account.name === legacyName);
+          if (matchingAccounts.length === 1) await tx.table('transactions').update(row.id, { accountId: matchingAccounts[0].id });
+        }
+        await tx.table('transactions').where('id').equals(row.id).modify((record: Record<string, unknown>) => {
+          delete record.paymentMethod;
+        });
+      }
+    });
+
+    // The cleanup above guarantees this unique index can be created safely.
+    this.version(13).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId',
+      accounts: '++id, &name',
+      transfers: '++id, date, fromAccountId, toAccountId',
     });
   }
 }

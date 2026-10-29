@@ -102,6 +102,7 @@ export default function TransactionsPage() {
 
   const currency = settings?.currencySymbol || "৳";
   const noAccounts = (accounts || []).length === 0;
+  const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
 
   const availableTags = Array.from(new Set((transactions || []).flatMap((tx) => Array.isArray(tx.tags) ? tx.tags : []))).sort();
 
@@ -109,7 +110,7 @@ export default function TransactionsPage() {
     const matchesSearch =
       tx.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.paymentMethod.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getAccountName(tx.accountId).toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.counterparty?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (Array.isArray(tx.tags) && tx.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase())));
 
@@ -323,6 +324,7 @@ export default function TransactionsPage() {
         {filteredTx.map((tx) => {
           const entry = getCategoryIcon(tx.categoryName);
           const Icon = entry.icon;
+          const accountName = getAccountName(tx.accountId);
           const isLoan = tx.type === "loan";
           const isPositive = tx.type === "income" || (isLoan && tx.loanType === "borrow");
           const statusColor =
@@ -358,7 +360,7 @@ export default function TransactionsPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(tx.date), "MMM d, yyyy")} · {tx.paymentMethod}
+                      {format(new Date(tx.date), "MMM d, yyyy")} · {accountName}
                     </p>
                     {tx.counterparty && (
                       <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>

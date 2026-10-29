@@ -46,6 +46,7 @@ export default function HomePage() {
   const currency = settings?.currencySymbol || "$";
   const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
   const noAccounts = (accounts || []).length === 0;
+  const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
 
   const totals = useMemo(() => {
     const txs = transactions || [];
@@ -289,7 +290,7 @@ export default function HomePage() {
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(tx.date), "MMM d, yyyy")} · {tx.paymentMethod}
+                              {format(new Date(tx.date), "MMM d, yyyy")} · {getAccountName(tx.accountId)}
                             </p>
                             {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
                             <div className="mt-2 space-y-1">
@@ -408,7 +409,7 @@ export default function HomePage() {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(tx.date), "p")} - {tx.paymentMethod}
+                              {format(new Date(tx.date), "p")} - {getAccountName(tx.accountId)}
                             </p>
                             {tx.type === "loan" && tx.loanStatus === "partial" && (
                               <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">

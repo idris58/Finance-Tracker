@@ -22,7 +22,6 @@ export const insertTransactionSchema = z.object({
   categoryName: z.string().optional().nullable(),
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
   settlementDate: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)).optional().nullable(),
-  paymentMethod: z.string().min(1),
   accountId: z.number().optional().nullable(),
   loanSettlementAccountId: z.number().optional().nullable(),
   counterparty: z.string().optional().nullable(),
@@ -73,7 +72,8 @@ export interface Transaction {
   categoryName?: string | null;
   date: Date;
   settlementDate?: Date | null;
-  paymentMethod: string;
+  /** Legacy display field; accountId is the active account link. */
+  paymentMethod?: string;
   accountId?: number | null;
   loanSettlementAccountId?: number | null;
   counterparty?: string | null;
@@ -153,7 +153,7 @@ export const transactionBackupSchema = z.object({
   categoryName: z.string().nullable().optional(),
   date: z.union([z.date(), z.string()]),
   settlementDate: z.union([z.date(), z.string()]).nullable().optional(),
-  paymentMethod: z.string().optional().default("Cash"),
+  paymentMethod: z.string().optional(),
   accountId: z.number().nullable().optional(),
   loanSettlementAccountId: z.number().nullable().optional(),
   counterparty: z.string().nullable().optional(),
