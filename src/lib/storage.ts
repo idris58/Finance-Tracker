@@ -49,14 +49,6 @@ export class LocalStorage implements IStorage {
     return roundMoney(-amount);
   }
 
-  // Legacy single-settlement helper (still used for old-style settled status)
-  private getSettlementDelta(tx: Transaction): number {
-    if (tx.type !== 'loan' || tx.loanStatus !== 'settled') return 0;
-    if (tx.settlements && tx.settlements.length > 0) return 0; // handled by new system
-    const amount = Number(tx.amount);
-    return roundMoney(tx.loanType === 'borrow' ? -amount : amount);
-  }
-
   // Calculate net settlement impact per account from the settlements array
   private getSettlementsImpactByAccount(tx: Transaction): Map<number, number> {
     const impact = new Map<number, number>();
@@ -149,7 +141,6 @@ export class LocalStorage implements IStorage {
     const transactionsWithDates = transactions.map((tx) => ({
       ...tx,
       date: tx.date instanceof Date ? tx.date : new Date(tx.date),
-      settlementDate: tx.settlementDate instanceof Date ? tx.settlementDate : (tx.settlementDate ? new Date(tx.settlementDate) : null),
       settlements: Array.isArray(tx.settlements)
         ? tx.settlements.map((s) => ({
             ...s,
@@ -191,17 +182,7 @@ export class LocalStorage implements IStorage {
         transaction.loanType = transaction.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
       }
 
-      if (transaction.type === 'loan' && !transaction.loanStatus) {
-        transaction.loanStatus = 'open';
-      }
-      // Legacy single-settlement support
-      if (transaction.type === 'loan' && transaction.loanStatus === 'settled' && !transaction.loanSettlementAccountId) {
-        transaction.loanSettlementAccountId = transaction.accountId ?? null;
-      }
-      if (transaction.type !== 'loan' || (transaction.loanStatus !== 'settled' && transaction.loanStatus !== 'partial')) {
-        transaction.loanSettlementAccountId = null;
-        transaction.settlementDate = null;
-      }
+      transaction.loanStatus = transaction.type === 'loan' ? this.computeLoanStatus(transaction as Transaction) : null;
 
       if (transaction.accountId) {
         const account = await db.accounts.get(transaction.accountId);
@@ -220,7 +201,6 @@ export class LocalStorage implements IStorage {
       const id = await db.transactions.add({
         ...transaction,
         date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
-        settlementDate: transaction.settlementDate instanceof Date ? transaction.settlementDate : (transaction.settlementDate ? new Date(transaction.settlementDate) : null),
         settlements: transaction.settlements ?? [],
       } as Transaction);
 
@@ -238,20 +218,9 @@ export class LocalStorage implements IStorage {
         }
       }
 
-      // Legacy single settlement (for backward compat if creating with loanStatus=settled)
-      if (transaction.loanSettlementAccountId && (!transaction.settlements || transaction.settlements.length === 0)) {
-        const account = await db.accounts.get(transaction.loanSettlementAccountId);
-        if (account) {
-          const delta = this.getSettlementDelta(transaction as Transaction);
-          const newBalance = roundMoney(Number(account.balance || 0) + delta);
-          await db.accounts.update(account.id!, { balance: toMoneyString(newBalance) });
-        }
-      }
-
       return {
         ...created,
         date: created.date instanceof Date ? created.date : new Date(created.date),
-        settlementDate: created.settlementDate instanceof Date ? created.settlementDate : (created.settlementDate ? new Date(created.settlementDate) : null),
         settlements: Array.isArray(created.settlements) ? created.settlements.map((s) => ({
           ...s,
           date: s.date instanceof Date ? s.date : new Date(s.date),
@@ -271,9 +240,6 @@ export class LocalStorage implements IStorage {
         ...existing,
         ...updates,
         date: updates.date ? (updates.date instanceof Date ? updates.date : new Date(updates.date)) : existing.date,
-        settlementDate: updates.settlementDate === undefined
-          ? existing.settlementDate ?? null
-          : (updates.settlementDate instanceof Date ? updates.settlementDate : (updates.settlementDate ? new Date(updates.settlementDate) : null)),
         settlements: updates.settlements !== undefined ? updates.settlements : (existing.settlements ?? []),
       };
       if (!Array.isArray(merged.tags)) {
@@ -281,6 +247,15 @@ export class LocalStorage implements IStorage {
       }
       if (!Array.isArray(merged.settlements)) {
         merged.settlements = [];
+      }
+      if (merged.type === 'loan') {
+        const settledTotal = merged.settlements.reduce((sum, settlement) => sum + Number(settlement.amount), 0);
+        if (Number(merged.amount) + 0.001 < settledTotal) {
+          throw new Error(`Loan amount cannot be less than the settled total (${roundMoney(settledTotal)})`);
+        }
+        merged.loanStatus = this.computeLoanStatus(merged);
+      } else {
+        merged.loanStatus = null;
       }
 
       if (merged.categoryId && merged.categoryId !== existing.categoryId) {
@@ -294,18 +269,7 @@ export class LocalStorage implements IStorage {
       if (merged.type === 'loan' && !merged.loanType) {
         merged.loanType = merged.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
       }
-      if (merged.type === 'loan' && !merged.loanStatus) {
-        merged.loanStatus = 'open';
-      }
-      if (merged.type === 'loan' && merged.loanStatus === 'settled' && !merged.loanSettlementAccountId) {
-        merged.loanSettlementAccountId = merged.accountId ?? null;
-      }
-      if (merged.type !== 'loan' || (merged.loanStatus !== 'settled' && merged.loanStatus !== 'partial')) {
-        if (merged.settlements && merged.settlements.length === 0) {
-          merged.loanSettlementAccountId = null;
-          merged.settlementDate = null;
-        }
-      }
+      merged.loanStatus = merged.type === 'loan' ? this.computeLoanStatus(merged) : null;
 
       if (merged.accountId) {
         const account = await db.accounts.get(merged.accountId);
@@ -323,8 +287,6 @@ export class LocalStorage implements IStorage {
 
       const oldDelta = this.getBalanceDelta(existing);
       const newDelta = this.getBalanceDelta(merged);
-      const oldSettlementDelta = this.getSettlementDelta(existing);
-      const newSettlementDelta = this.getSettlementDelta(merged);
 
       // Reconcile primary account balance
       if (existing.accountId && existing.accountId === merged.accountId) {
@@ -351,32 +313,8 @@ export class LocalStorage implements IStorage {
         }
       }
 
-      // Reconcile legacy settlement accounts
-      if (existing.loanSettlementAccountId && existing.loanSettlementAccountId === merged.loanSettlementAccountId) {
-        const account = await db.accounts.get(existing.loanSettlementAccountId);
-        if (account) {
-          const delta = newSettlementDelta - oldSettlementDelta;
-          const next = roundMoney(Number(account.balance || 0) + delta);
-          await db.accounts.update(account.id!, { balance: toMoneyString(next) });
-        }
-      } else {
-        if (existing.loanSettlementAccountId) {
-          const oldAccount = await db.accounts.get(existing.loanSettlementAccountId);
-          if (oldAccount) {
-            const next = roundMoney(Number(oldAccount.balance || 0) - oldSettlementDelta);
-            await db.accounts.update(oldAccount.id!, { balance: toMoneyString(next) });
-          }
-        }
-        if (merged.loanSettlementAccountId) {
-          const newAccount = await db.accounts.get(merged.loanSettlementAccountId);
-          if (newAccount) {
-            const next = roundMoney(Number(newAccount.balance || 0) + newSettlementDelta);
-            await db.accounts.update(newAccount.id!, { balance: toMoneyString(next) });
-          }
-        }
-      }
+      // Reconcile settlement records
 
-      // Reconcile new-style settlements array changes
       const oldSettlementsImpact = this.getSettlementsImpactByAccount(existing);
       const newSettlementsImpact = this.getSettlementsImpactByAccount(merged);
       const allSettlementAccountIds = new Set([...oldSettlementsImpact.keys(), ...newSettlementsImpact.keys()]);
@@ -422,17 +360,8 @@ export class LocalStorage implements IStorage {
         }
       }
 
-      // Reverse legacy settlement
-      if (existing.loanSettlementAccountId && (!existing.settlements || existing.settlements.length === 0)) {
-        const account = await db.accounts.get(existing.loanSettlementAccountId);
-        if (account) {
-          const delta = -this.getSettlementDelta(existing);
-          const newBalance = roundMoney(Number(account.balance || 0) + delta);
-          await db.accounts.update(account.id!, { balance: toMoneyString(newBalance) });
-        }
-      }
+      // Reverse settlement records
 
-      // Reverse new-style settlements
       if (existing.settlements && existing.settlements.length > 0) {
         const impact = this.getSettlementsImpactByAccount(existing);
         for (const [accId, delta] of impact.entries()) {
@@ -483,13 +412,7 @@ export class LocalStorage implements IStorage {
         await db.accounts.update(account.id!, { balance: toMoneyString(newBalance) });
       }
 
-      await db.transactions.update(transactionId, {
-        settlements: newSettlements,
-        loanStatus: newStatus,
-        // Update legacy fields for backward compatibility
-        settlementDate: newStatus === 'settled' ? normalizedSettlement.date : existing.settlementDate,
-        loanSettlementAccountId: newStatus === 'settled' ? settlement.accountId : existing.loanSettlementAccountId,
-      });
+      await db.transactions.update(transactionId, { settlements: newSettlements, loanStatus: newStatus });
 
       const updated = await db.transactions.get(transactionId);
       if (!updated) throw new Error('Failed to update transaction');
@@ -527,9 +450,6 @@ export class LocalStorage implements IStorage {
       await db.transactions.update(transactionId, {
         settlements: newSettlements,
         loanStatus: newStatus,
-        // If we moved back from settled, clear legacy fields
-        settlementDate: newStatus === 'settled' ? existing.settlementDate : null,
-        loanSettlementAccountId: newStatus === 'settled' ? existing.loanSettlementAccountId : null,
       });
 
       const updated = await db.transactions.get(transactionId);
@@ -582,9 +502,8 @@ export class LocalStorage implements IStorage {
         throw new Error('Account not found');
       }
       const directCount = await db.transactions.where('accountId').equals(id).count();
-      const settlementCount = await db.transactions.where('loanSettlementAccountId').equals(id).count();
       const nameCount = await db.transactions.where('paymentMethod').equals(account.name).count();
-      if (directCount > 0 || settlementCount > 0 || nameCount > 0) {
+      if (directCount > 0 || nameCount > 0) {
         throw new Error('Account has linked transactions. Remove or edit those transactions first.');
       }
       await db.accounts.delete(id);
@@ -733,15 +652,6 @@ export class LocalStorage implements IStorage {
             accountId = nameToAccountId.get(tx.paymentMethod) ?? null;
           }
 
-          let settlementAccountId = tx.loanSettlementAccountId ?? null;
-          if (settlementAccountId && oldAccountIdToName.has(settlementAccountId)) {
-            const name = oldAccountIdToName.get(settlementAccountId)!;
-            settlementAccountId = nameToAccountId.get(name) ?? null;
-          }
-          if (!settlementAccountId && tx.loanStatus === 'settled') {
-            settlementAccountId = accountId ?? null;
-          }
-
           // Remap settlement accountIds and ensure each settlement has a robust UUID
           const remappedSettlements: LoanSettlement[] = (Array.isArray(tx.settlements) ? tx.settlements : []).map((s) => {
             let sAccountId = s.accountId;
@@ -757,22 +667,38 @@ export class LocalStorage implements IStorage {
               note: s.note ?? null,
             };
           });
+          if (tx.type === 'loan' && remappedSettlements.length === 0 && tx.loanStatus === 'settled' && tx.loanSettlementAccountId) {
+            const legacyAccountName = oldAccountIdToName.get(tx.loanSettlementAccountId);
+            const settlementAccountId = legacyAccountName
+              ? nameToAccountId.get(legacyAccountName) ?? accountId
+              : nameToAccountId.get(tx.paymentMethod || 'Cash') ?? accountId;
+            if (settlementAccountId) {
+              remappedSettlements.push({
+                id: uuidv4(),
+                amount: String(tx.amount),
+                accountId: settlementAccountId,
+                date: tx.settlementDate ? new Date(tx.settlementDate) : new Date(tx.date),
+                note: null,
+              });
+            }
+          }
+          const settledAmount = remappedSettlements.reduce((sum, settlement) => sum + Number(settlement.amount), 0);
+          const derivedLoanStatus = tx.type !== 'loan' ? null : settledAmount <= 0 ? 'open'
+            : settledAmount >= Number(tx.amount) ? 'settled' : 'partial';
 
           await db.transactions.add({
             amount: String(tx.amount ?? '0'),
             categoryId: catId ?? null,
             categoryName: tx.categoryName ?? null,
             date: new Date(tx.date),
-            settlementDate: tx.settlementDate ? new Date(tx.settlementDate) : null,
             paymentMethod: tx.paymentMethod || 'Cash',
             accountId,
-            loanSettlementAccountId: settlementAccountId,
             counterparty: tx.counterparty ?? null,
             note: tx.note ?? null,
             tags: Array.isArray(tx.tags) ? tx.tags : [],
             type: tx.type ?? 'expense',
             loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
-            loanStatus: tx.loanStatus ?? (tx.type === 'loan' ? 'open' : null),
+            loanStatus: derivedLoanStatus,
             settlements: remappedSettlements,
           } as Transaction);
         }
@@ -828,9 +754,6 @@ export class LocalStorage implements IStorage {
               const cur = balanceMap.get(accId) ?? 0;
               balanceMap.set(accId, roundMoney(cur + delta));
             }
-          } else if (tx.loanSettlementAccountId) {
-            const settleCurrent = balanceMap.get(tx.loanSettlementAccountId) ?? 0;
-            balanceMap.set(tx.loanSettlementAccountId, roundMoney(settleCurrent + this.getSettlementDelta(tx)));
           }
         }
         for (const [id, balance] of balanceMap.entries()) {

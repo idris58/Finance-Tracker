@@ -141,18 +141,6 @@ export default function StatisticsPage() {
             rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - sAmount);
           }
         });
-      } else if (tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate) {
-        const settlementDate = new Date(tx.settlementDate);
-        if (settlementDate.getFullYear() === currentYear) {
-          const settlementKey = format(settlementDate, "yyyy-MM");
-          ensureRow(settlementKey);
-          if (tx.loanType === "borrow") {
-            rows[settlementKey].borrow = roundMoney(rows[settlementKey].borrow - amount);
-          }
-          if (tx.loanType === "lend") {
-            rows[settlementKey].lend = roundMoney(rows[settlementKey].lend - amount);
-          }
-        }
       }
     });
 

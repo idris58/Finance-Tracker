@@ -211,6 +211,39 @@ class FinanceDatabase extends Dexie {
         }
       }
     });
+
+    // Convert remaining legacy settled loans into settlement records and remove the legacy index.
+    this.version(11).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId, paymentMethod',
+      accounts: '++id, name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+    }).upgrade(async (tx) => {
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const row of transactions) {
+        const settlements = Array.isArray(row.settlements) ? row.settlements : [];
+        if (row.type === 'loan' && settlements.length === 0 && row.loanStatus === 'settled' && (row.loanSettlementAccountId ?? row.accountId)) {
+          const settlement: LoanSettlement = {
+            id: `legacy-${row.id}`,
+            amount: String(row.amount),
+            accountId: row.loanSettlementAccountId ?? row.accountId,
+            date: row.settlementDate ? new Date(row.settlementDate) : new Date(row.date),
+            note: null,
+          };
+          settlements.push(settlement);
+        }
+        const total = settlements.reduce((sum: number, item: LoanSettlement) => sum + Number(item.amount), 0);
+        const amount = Number(row.amount);
+        const loanStatus = row.type !== 'loan' || total <= 0 ? (row.type === 'loan' ? 'open' : null)
+          : total >= amount ? 'settled' : 'partial';
+        await tx.table('transactions').update(row.id, { settlements, loanStatus });
+        await tx.table('transactions').where('id').equals(row.id).modify((record: Record<string, unknown>) => {
+          delete record.loanSettlementAccountId;
+          delete record.settlementDate;
+        });
+      }
+    });
   }
 }
 

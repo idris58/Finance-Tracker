@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney } from "@/lib/money";
 
-const formSchema = insertTransactionSchema.extend({
+const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettlementAccountId: true, settlementDate: true }).extend({
   amount: z.string()
     .min(1, "Please enter an amount")
     .transform((val) => val === "" ? "0" : val)
@@ -71,7 +71,6 @@ export function TransactionModal({
   const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
-  const [isSettlementDateOpen, setIsSettlementDateOpen] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
 
   const parseTags = (value: string) => value
@@ -89,14 +88,11 @@ export function TransactionModal({
       categoryId: 0,
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
-      loanSettlementAccountId: null,
-      settlementDate: null,
       counterparty: "",
       note: "",
       date: new Date(),
       type: "expense",
       loanType: null,
-      loanStatus: "open",
       tags: [],
     },
   });
@@ -111,14 +107,11 @@ export function TransactionModal({
         categoryId: transaction.categoryId ?? 0,
         paymentMethod: transaction.paymentMethod ?? "Cash",
         accountId: transaction.accountId ?? cashAccount?.id ?? null,
-        loanSettlementAccountId: transaction.loanSettlementAccountId ?? (transaction.loanStatus === "settled" ? transaction.accountId ?? null : null),
-        settlementDate: transaction.settlementDate ? new Date(transaction.settlementDate) : null,
         counterparty: transaction.counterparty ?? "",
         note: transaction.note ?? "",
         date: transaction.date ? new Date(transaction.date) : new Date(),
         type: transaction.type ?? "expense",
         loanType: transaction.loanType ?? null,
-        loanStatus: transaction.loanStatus ?? (transaction.type === "loan" ? "open" : null),
         tags: transaction.tags ?? [],
       });
       setTagsInput((transaction.tags || []).join(", "));
@@ -131,20 +124,22 @@ export function TransactionModal({
       categoryId: 0,
       paymentMethod: "Cash",
       accountId: cashAccount?.id ?? null,
-      loanSettlementAccountId: null,
-      settlementDate: null,
       counterparty: "",
       note: "",
       date: new Date(),
       type: "expense",
       loanType: null,
-      loanStatus: "open",
       tags: [],
     });
     setTagsInput("");
   }, [open, cashAccount?.id, form, transaction]);
 
   const onSubmit = (values: FormValues) => {
+    const settledTotal = (transaction?.settlements ?? []).reduce((sum, settlement) => sum + Number(settlement.amount), 0);
+    if (transaction?.type === "loan" && Number(values.amount) + 0.001 < settledTotal) {
+      form.setError("amount", { message: `Amount cannot be less than the settled total (${formatMoney(settledTotal)}).` });
+      return;
+    }
     const tags = parseTags(tagsInput);
     if (transaction?.id) {
       updateTransaction(
@@ -170,18 +165,13 @@ export function TransactionModal({
     form.setValue("type", type);
     if (type !== "loan") {
       form.setValue("loanType", null);
-      form.setValue("loanStatus", null);
-      form.setValue("loanSettlementAccountId", null);
-      form.setValue("settlementDate", null);
-    } else {
-      form.setValue("loanStatus", "open");
     }
     form.setValue("categoryId", 0);
   };
 
   const watchAmount = form.watch("amount");
   const watchCategory = form.watch("categoryId");
-  const watchLoanStatus = form.watch("loanStatus");
+  const totalSettled = (transaction?.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0);
   const watchAccountId = form.watch("accountId");
 
   const selectedAccount = accounts?.find((a) => a.id === watchAccountId);
@@ -247,6 +237,11 @@ export function TransactionModal({
                       className="pl-8 text-xl font-bold tracking-tight"
                     />
                   </div>
+                  {isEditMode && activeType === "loan" && totalSettled > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Settled so far: {currency}{formatMoney(totalSettled)}. Amount must be at least this much.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -393,112 +388,6 @@ export function TransactionModal({
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="loanStatus"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          value={field.value || "open"}
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            if (value === "settled") {
-                              const current = form.getValues("loanSettlementAccountId");
-                              if (!current) {
-                                form.setValue("loanSettlementAccountId", form.getValues("accountId") ?? null);
-                              }
-                              const currentSettlementDate = form.getValues("settlementDate");
-                              if (!currentSettlementDate) {
-                                form.setValue("settlementDate", new Date());
-                              }
-                            } else {
-                              form.setValue("loanSettlementAccountId", null);
-                              form.setValue("settlementDate", null);
-                            }
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="rounded-xl">
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="open">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                                Open
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="settled">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                                Settled
-                              </span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                  {watchLoanStatus === "settled" && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="loanSettlementAccountId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Settlement account</FormLabel>
-                            <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(Number(value))}>
-                              <FormControl>
-                                <SelectTrigger className="rounded-xl">
-                                  <SelectValue placeholder="Select account" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {(accounts || []).map((account) => (
-                                  <SelectItem key={account.id} value={String(account.id)}>
-                                    {account.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="settlementDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Settlement date</FormLabel>
-                            <Popover onOpenChange={(value) => setIsSettlementDateOpen(value)} open={isSettlementDateOpen}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button variant="outline" className="w-full justify-between rounded-xl">
-                                    {field.value ? format(field.value, "MMM d, yyyy") : "Pick a date"}
-                                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value ?? undefined}
-                                  onSelect={(date) => {
-                                    field.onChange(date ?? null);
-                                    setIsSettlementDateOpen(false);
-                                  }}
-                                  disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
                 </div>
               </div>
             )}

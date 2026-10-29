@@ -415,14 +415,6 @@ export default function HomePage() {
                                 Remaining: {currency}{formatMoney(txRemaining)}
                               </p>
                             )}
-                            {tx.type === "loan" && tx.loanStatus === "settled" && tx.settlementDate && (
-                              <p className="text-xs text-muted-foreground/80">
-                                Settled {format(new Date(tx.settlementDate), "MMM d, yyyy")}
-                                {tx.loanSettlementAccountId && tx.loanSettlementAccountId !== tx.accountId && accounts?.find((account) => account.id === tx.loanSettlementAccountId)?.name
-                                  ? ` - ${accounts.find((account) => account.id === tx.loanSettlementAccountId)?.name}`
-                                  : ""}
-                              </p>
-                            )}
                             {tx.counterparty && (
                               <p className="text-xs text-muted-foreground/80 truncate">{tx.counterparty}</p>
                             )}
