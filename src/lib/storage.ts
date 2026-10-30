@@ -510,7 +510,7 @@ export class LocalStorage implements IStorage {
 
   async transferBetweenAccounts(params: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }): Promise<void> {
     return await db.transaction('rw', [db.accounts, db.transfers], async () => {
-      const { fromAccountId, toAccountId, amount, note, date } = params;
+      const { fromAccountId, toAccountId, amount, note } = params;
       if (fromAccountId === toAccountId) {
         throw new Error('Transfer accounts must be different');
       }
@@ -518,6 +518,8 @@ export class LocalStorage implements IStorage {
       if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
         throw new Error('Transfer amount must be greater than 0');
       }
+      const transferDate = params.date ?? new Date();
+      if (transferDate > new Date()) throw new Error('Transfer date cannot be in the future.');
 
       const from = await db.accounts.get(fromAccountId);
       const to = await db.accounts.get(toAccountId);
@@ -540,8 +542,57 @@ export class LocalStorage implements IStorage {
         toAccountId,
         amount: toMoneyString(parsedAmount),
         note: note ?? null,
-        date: date ?? new Date(),
+        date: transferDate,
       });
+    });
+  }
+
+  async updateTransfer(id: number, updates: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }): Promise<void> {
+    await db.transaction('rw', [db.accounts, db.transfers], async () => {
+      const existing = await db.transfers.get(id);
+      if (!existing) throw new Error('Transfer not found');
+      if (updates.fromAccountId === updates.toAccountId) throw new Error('Transfer accounts must be different');
+      const amount = Number(updates.amount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Transfer amount must be greater than 0');
+      if (updates.date > new Date()) throw new Error('Transfer date cannot be in the future.');
+
+      const oldFrom = await db.accounts.get(existing.fromAccountId);
+      const oldTo = await db.accounts.get(existing.toAccountId);
+      const newFrom = await db.accounts.get(updates.fromAccountId);
+      const newTo = await db.accounts.get(updates.toAccountId);
+      if (!oldFrom || !oldTo || !newFrom || !newTo) throw new Error('Account not found');
+
+      const balances = new Map<number, number>();
+      for (const account of [oldFrom, oldTo, newFrom, newTo]) balances.set(account.id!, Number(account.balance || 0));
+      balances.set(oldFrom.id!, (balances.get(oldFrom.id!) ?? 0) + Number(existing.amount));
+      balances.set(oldTo.id!, (balances.get(oldTo.id!) ?? 0) - Number(existing.amount));
+      const available = balances.get(newFrom.id!) ?? 0;
+      if (available < amount) throw new Error('Insufficient balance in the selected account.');
+      balances.set(newFrom.id!, available - amount);
+      balances.set(newTo.id!, (balances.get(newTo.id!) ?? 0) + amount);
+
+      for (const [accountId, balance] of balances) {
+        const account = await db.accounts.get(accountId);
+        if (account) await db.accounts.update(accountId, { balance: toMoneyString(roundMoney(balance)) });
+      }
+      await db.transfers.update(id, {
+        ...updates,
+        amount: toMoneyString(amount),
+        note: updates.note ?? null,
+        date: updates.date instanceof Date ? updates.date : new Date(updates.date),
+      });
+    });
+  }
+
+  async deleteTransfer(id: number): Promise<void> {
+    await db.transaction('rw', [db.accounts, db.transfers], async () => {
+      const transfer = await db.transfers.get(id);
+      if (!transfer) throw new Error('Transfer not found');
+      const from = await db.accounts.get(transfer.fromAccountId);
+      const to = await db.accounts.get(transfer.toAccountId);
+      if (from) await db.accounts.update(from.id!, { balance: toMoneyString(roundMoney(Number(from.balance || 0) + Number(transfer.amount))) });
+      if (to) await db.accounts.update(to.id!, { balance: toMoneyString(roundMoney(Number(to.balance || 0) - Number(transfer.amount))) });
+      await db.transfers.delete(id);
     });
   }
 

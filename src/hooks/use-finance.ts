@@ -358,6 +358,38 @@ export function useTransferBetweenAccounts() {
   });
 }
 
+export function useUpdateTransfer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date } }) => {
+      await storage.updateTransfer(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      toast({ title: 'Transfer updated', description: 'Transfer details and balances were updated.' });
+    },
+    onError: (error: any) => toast({ title: 'Transfer update failed', description: error?.message || 'Could not update transfer.', variant: 'destructive' }),
+  });
+}
+
+export function useDeleteTransfer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (id: number) => storage.deleteTransfer(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      toast({ title: 'Transfer deleted', description: 'The transfer was reversed and removed.' });
+    },
+    onError: (error: any) => toast({ title: 'Transfer deletion failed', description: error?.message || 'Could not delete transfer.', variant: 'destructive' }),
+  });
+}
+
 
 
 // --- Stats ---

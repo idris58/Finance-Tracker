@@ -329,9 +329,16 @@ export function TransactionModal({
                       </SelectContent>
                     </Select>
                     {selectedAccount && (
-                      <p className="text-xs text-muted-foreground">
-                        Balance: {currency}{formatMoney(Number(selectedAccount.balance || 0))}
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Balance: {currency}{formatMoney(Number(selectedAccount.balance || 0))}
+                        </p>
+                        {activeType === "expense" && Number(watchAmount) > Number(selectedAccount.balance || 0) && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            This expense exceeds the account balance. The account may go below zero.
+                          </p>
+                        )}
+                      </div>
                     )}
                     <FormMessage />
                   </FormItem>

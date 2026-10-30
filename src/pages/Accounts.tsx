@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState } from "react";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff } from "lucide-react";
+import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts, useCreateAccount, useDeleteAccount, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
+import { useAccounts, useCreateAccount, useDeleteAccount, useDeleteTransfer, useTransferBetweenAccounts, useTransfers, useUpdateAccount, useUpdateTransfer } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +54,8 @@ export default function AccountsPage() {
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
   const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
   const { mutate: transferBetweenAccounts, isPending: isTransferring } = useTransferBetweenAccounts();
+  const { mutate: updateTransfer, isPending: isUpdatingTransfer } = useUpdateTransfer();
+  const { mutate: deleteTransfer } = useDeleteTransfer();
   const { data: transfers } = useTransfers();
 
   const [open, setOpen] = useState(false);
@@ -60,6 +63,7 @@ export default function AccountsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [form, setForm] = useState<AccountForm>({ name: "", type: "Cash", balance: "0" });
   const [transferOpen, setTransferOpen] = useState(false);
+  const [editingTransferId, setEditingTransferId] = useState<number | null>(null);
   const [transferForm, setTransferForm] = useState<TransferForm>({
     fromAccountId: null,
     toAccountId: null,
@@ -75,7 +79,10 @@ export default function AccountsPage() {
   const currency = useCurrency();
 
   const fromAccount = useMemo(() => (accounts || []).find((acc) => acc.id === transferForm.fromAccountId) || null, [accounts, transferForm.fromAccountId]);
-  const fromBalance = fromAccount ? Number(fromAccount.balance || 0) : 0;
+  const editingTransfer = transfers?.find((item) => item.id === editingTransferId);
+  const fromBalance = fromAccount
+    ? Number(fromAccount.balance || 0) + (editingTransfer && editingTransfer.fromAccountId === fromAccount.id ? Number(editingTransfer.amount) : 0)
+    : 0;
   const transferAmount = Number(transferForm.amount || 0);
   const insufficientBalance = !!fromAccount && transferAmount > fromBalance;
 
@@ -124,18 +131,39 @@ export default function AccountsPage() {
   const handleTransfer = () => {
     if (!transferForm.fromAccountId || !transferForm.toAccountId) return;
     if (!transferForm.amount || Number(transferForm.amount) <= 0) return;
-    transferBetweenAccounts({
+    const data = {
       fromAccountId: transferForm.fromAccountId,
       toAccountId: transferForm.toAccountId,
       amount: transferForm.amount,
       note: transferForm.note || null,
       date: transferForm.date,
-    }, {
-      onSuccess: () => {
-        setTransferOpen(false);
-        resetTransferForm();
-      }
+    };
+    const onSuccess = () => {
+      setTransferOpen(false);
+      setEditingTransferId(null);
+      resetTransferForm();
+    };
+    if (editingTransferId !== null) {
+      updateTransfer({ id: editingTransferId, data }, { onSuccess });
+      return;
+    }
+    transferBetweenAccounts(data, {
+      onSuccess,
     });
+  };
+
+  const startEditTransfer = (item: NonNullable<typeof transfers>[number]) => {
+    if (item.id === undefined) return;
+    setEditingTransferId(item.id);
+    setTransferForm({
+      fromAccountId: item.fromAccountId,
+      toAccountId: item.toAccountId,
+      amount: item.amount,
+      note: item.note ?? "",
+      date: new Date(item.date),
+    });
+    setLogOpen(false);
+    setTransferOpen(true);
   };
 
   const handleEdit = (account: AccountForm) => {
@@ -184,7 +212,13 @@ export default function AccountsPage() {
         <div className="flex items-center justify-between sm:items-center">
           <h3 className="text-lg font-semibold">Accounts</h3>
           <div className="flex flex-wrap items-center gap-2">
-            <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+            <Dialog open={transferOpen} onOpenChange={(next) => {
+              setTransferOpen(next);
+              if (!next) {
+                setEditingTransferId(null);
+                resetTransferForm();
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
                   <Repeat className="mr-2 h-4 w-4" /> Transfer
@@ -192,14 +226,18 @@ export default function AccountsPage() {
               </DialogTrigger>
               <DialogContent className="rounded-3xl">
                 <DialogHeader>
-                  <DialogTitle>Transfer between accounts</DialogTitle>
+                  <DialogTitle>{editingTransferId !== null ? "Edit transfer" : "Transfer between accounts"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>From account</Label>
                     <Select
                       value={transferForm.fromAccountId?.toString() || ""}
-                      onValueChange={(value) => setTransferForm((prev) => ({ ...prev, fromAccountId: Number(value) }))}
+                      onValueChange={(value) => setTransferForm((prev) => ({
+                        ...prev,
+                        fromAccountId: Number(value),
+                        toAccountId: prev.toAccountId === Number(value) ? null : prev.toAccountId,
+                      }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select account" />
@@ -223,7 +261,7 @@ export default function AccountsPage() {
                         <SelectValue placeholder="Select account" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(accounts || []).map((account) => (
+                        {(accounts || []).filter((account) => account.id !== transferForm.fromAccountId).map((account) => (
                           <SelectItem key={account.id} value={String(account.id)}>
                             {account.name}
                           </SelectItem>
@@ -258,6 +296,7 @@ export default function AccountsPage() {
                           mode="single"
                           selected={transferForm.date}
                           onSelect={(date) => date && setTransferForm((prev) => ({ ...prev, date }))}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                           initialFocus
                         />
                       </PopoverContent>
@@ -274,7 +313,7 @@ export default function AccountsPage() {
                   <Button
                     onClick={handleTransfer}
                     disabled={
-                      isTransferring ||
+                      isTransferring || isUpdatingTransfer ||
                       !transferForm.fromAccountId ||
                       !transferForm.toAccountId ||
                       transferForm.fromAccountId === transferForm.toAccountId ||
@@ -284,7 +323,7 @@ export default function AccountsPage() {
                     }
                     className="w-full"
                   >
-                    Transfer
+                    {editingTransferId !== null ? "Save changes" : "Transfer"}
                   </Button>
                 </div>
               </DialogContent>
@@ -321,6 +360,28 @@ export default function AccountsPage() {
                         {item.note && (
                           <div className="mt-2 text-xs text-muted-foreground">{item.note}</div>
                         )}
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => startEditTransfer(item)}>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="text-destructive">
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete this transfer?</AlertDialogTitle>
+                                <AlertDialogDescription>The balance change will be reversed and the transfer removed from the log.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => item.id && deleteTransfer(item.id)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     ))
                   )}
