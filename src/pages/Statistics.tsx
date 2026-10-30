@@ -3,7 +3,7 @@ import { format, subMonths } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useLocation } from "wouter";
-import { useAccounts, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useAppState } from "@/context/AppStateContext";
@@ -60,6 +60,7 @@ export default function StatisticsPage() {
   const [chartMode, setChartMode] = useState<"bar" | "pie">("bar");
   const { monthDate, setMonthDate } = useAppState();
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
+  const [summaryYear, setSummaryYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function StatisticsPage() {
   const monthKey = format(monthDate, "yyyy-MM");
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { data: accounts } = useAccounts();
+  const { data: categories } = useCategories();
   const { data: transactions } = useTransactions({ month: monthKey });
   const { data: allTransactions } = useTransactions();
   const { openNew } = useTransactionEditor();
@@ -92,12 +94,15 @@ export default function StatisticsPage() {
       totals[key] = { name: tx.categoryName || "Uncategorized", value: roundMoney((totals[key]?.value || 0) + Number(tx.amount)) };
     });
     return Object.entries(totals)
-      .map(([key, item]) => ({ id: key.split(":", 1)[0], ...item }))
+      .map(([key, item], index) => {
+        const id = key.split(":", 1)[0];
+        return { id, ...item, color: categories?.find((category) => String(category.id) === id)?.color ?? palette[index % palette.length] };
+      })
       .sort((a, b) => b.value - a.value);
-  }, [transactions, activeType]);
+  }, [transactions, activeType, categories]);
 
   const yearSummary = useMemo(() => {
-    const currentYear = new Date().getFullYear();
+    const currentYear = summaryYear;
     const rows: Record<string, { expense: number; income: number; borrow: number; lend: number }> = {};
     let totalExpense = 0;
     let totalIncome = 0;
@@ -155,7 +160,7 @@ export default function StatisticsPage() {
         .sort((a, b) => (a.month < b.month ? 1 : -1));
 
     return { currentYear, totalExpense, totalIncome, table };
-  }, [allTransactions]);
+  }, [allTransactions, summaryYear]);
 
   const monthlyComparison = useMemo(() => {
     const currentKey = format(monthDate, "yyyy-MM");
@@ -268,28 +273,28 @@ export default function StatisticsPage() {
     <div className="space-y-6">
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6">
         <Sheet>
-          <SheetTrigger asChild>
-            <button className="w-full text-left">
+          <div className="flex items-start gap-2">
+            <SheetTrigger asChild>
+              <button type="button" className="flex-1 text-left">
               <p className="text-sm text-muted-foreground">Total balance</p>
               <div className="mt-2 flex items-center gap-2">
                 <h2 className="text-3xl font-semibold">
                   {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
                 </h2>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleHideBalance();
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
-                >
-                  {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">Tap for details</p>
+              </button>
+            </SheetTrigger>
+            <button
+              type="button"
+              onClick={toggleHideBalance}
+              aria-label={hideBalance ? "Show balance" : "Hide balance"}
+              className="mt-7 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
+            >
+              {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
-          </SheetTrigger>
+          </div>
           <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
             <SheetHeader>
               <SheetTitle>Balance overview</SheetTitle>
@@ -297,8 +302,14 @@ export default function StatisticsPage() {
             <div className="mt-4 space-y-4">
               <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4">
                 <div className="text-sm text-muted-foreground">Year</div>
-                <div className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
-                  {yearSummary.currentYear}
+                <div className="flex items-center gap-3">
+                  <Button type="button" variant="ghost" size="icon" aria-label="Previous year" onClick={() => setSummaryYear((year) => year - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-12 text-center text-sm font-semibold text-primary">{yearSummary.currentYear}</span>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Next year" onClick={() => setSummaryYear((year) => year + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -311,7 +322,7 @@ export default function StatisticsPage() {
                   <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalIncome)}</p>
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
-                  <p className="text-xs text-muted-foreground">Net balance</p>
+                  <p className="text-xs text-muted-foreground">Net income (excludes loans)</p>
                   <p className={cn(
                     "mt-2 text-lg font-semibold",
                     yearSummary.totalIncome - yearSummary.totalExpense < 0 ? "text-rose-500" : "text-emerald-500"
@@ -325,6 +336,9 @@ export default function StatisticsPage() {
 
               {yearSummary.table.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
+                  <p className="px-3 pt-3 text-xs text-muted-foreground">
+                    Borrow net and Lend net subtract settlements from new loans. Negative values mean repayments exceeded new loans that month.
+                  </p>
                   <div className="divide-y divide-border/60 md:hidden max-h-[40vh] overflow-y-auto">
                     {yearSummary.table.map((row) => (
                       <div key={row.month} className="space-y-2 px-3 py-3 text-sm">
@@ -336,11 +350,11 @@ export default function StatisticsPage() {
                           <span className="text-right">{currency}{formatMoney(row.expense)}</span>
                           <span className="text-muted-foreground">Income</span>
                           <span className="text-right">{currency}{formatMoney(row.income)}</span>
-                          <span className="text-muted-foreground">Lend</span>
+                          <span className="text-muted-foreground">Lend net</span>
                           <span className="text-right">{currency}{formatMoney(row.lend)}</span>
-                          <span className="text-muted-foreground">Borrow</span>
+                          <span className="text-muted-foreground">Borrow net</span>
                           <span className="text-right">{currency}{formatMoney(row.borrow)}</span>
-                          <span className="text-muted-foreground">Balance</span>
+                          <span className="text-muted-foreground">Cash movement (incl. loans)</span>
                           <span className={cn("text-right font-semibold", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
                             {currency}{formatMoney(row.balance)}
                           </span>
@@ -354,9 +368,9 @@ export default function StatisticsPage() {
                           <th className="px-3 py-2 text-left font-semibold">Month</th>
                           <th className="px-3 py-2 text-right font-semibold">Expense</th>
                           <th className="px-3 py-2 text-right font-semibold">Income</th>
-                          <th className="px-3 py-2 text-right font-semibold">Lend</th>
-                          <th className="px-3 py-2 text-right font-semibold">Borrow</th>
-                          <th className="px-3 py-2 text-right font-semibold">Balance</th>
+                          <th className="px-3 py-2 text-right font-semibold">Lend net</th>
+                          <th className="px-3 py-2 text-right font-semibold">Borrow net</th>
+                          <th className="px-3 py-2 text-right font-semibold">Cash movement</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -402,22 +416,22 @@ export default function StatisticsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
-          <p className="text-xs text-muted-foreground">Income (this month)</p>
+          <p className="text-xs text-muted-foreground">Income · {format(monthDate, "MMMM yyyy")}</p>
           <p className="mt-2 text-lg font-semibold">
             {currency}{formatMoney(monthlyComparison.income.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: {currency}{formatMoney(monthlyComparison.income.prev)}</span>
+            <span>Previous month: {currency}{formatMoney(monthlyComparison.income.prev)}</span>
             {renderChange(monthlyComparison.income.current, monthlyComparison.income.prev)}
           </div>
         </div>
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
-          <p className="text-xs text-muted-foreground">Expense (this month)</p>
+          <p className="text-xs text-muted-foreground">Expense · {format(monthDate, "MMMM yyyy")}</p>
           <p className="mt-2 text-lg font-semibold">
               {currency}{formatMoney(monthlyComparison.expense.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: {currency}{formatMoney(monthlyComparison.expense.prev)}</span>
+            <span>Previous month: {currency}{formatMoney(monthlyComparison.expense.prev)}</span>
             {renderChange(monthlyComparison.expense.current, monthlyComparison.expense.prev, true)}
           </div>
         </div>
@@ -497,8 +511,8 @@ export default function StatisticsPage() {
                     <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip cursor={false} content={<ChartTooltip currency={currency} />} />
                     <Bar dataKey="value" radius={[12, 12, 0, 0]}>
-                      {categoryTotals.map((entry, index) => (
-                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={palette[index % palette.length]} />
+                      {categoryTotals.map((entry) => (
+                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={entry.color} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -513,8 +527,8 @@ export default function StatisticsPage() {
                       outerRadius={90}
                       activeShape={false}
                     >
-                      {categoryTotals.map((entry, index) => (
-                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={palette[index % palette.length]} />
+                      {categoryTotals.map((entry) => (
+                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={entry.color} />
                       ))}
                     </Pie>
                   </PieChart>
@@ -522,9 +536,9 @@ export default function StatisticsPage() {
               </ResponsiveContainer>
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
-              {categoryTotals.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <span className="h-2.5 w-7 rounded-full" style={{ backgroundColor: palette[index % palette.length] }} />
+              {categoryTotals.map((item) => (
+                <div key={`${item.id}:${item.name}`} className="flex items-center gap-2">
+                  <span className="h-2.5 w-7 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="text-xs">{item.name}</span>
                 </div>
               ))}
