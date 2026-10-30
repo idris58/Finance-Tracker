@@ -10,6 +10,7 @@ type StoredState = {
   loanStatusFilter?: LoanStatusFilter;
   tagFilter?: string;
   monthFilter?: string;
+  categoryFilter?: string;
 };
 
 type AppStateValue = {
@@ -25,6 +26,8 @@ type AppStateValue = {
   setTagFilter: (value: string) => void;
   monthFilter: string;
   setMonthFilter: (value: string) => void;
+  categoryFilter: string;
+  setCategoryFilter: (value: string) => void;
   hideBalance: boolean;
   setHideBalance: (value: boolean) => void;
   toggleHideBalance: () => void;
@@ -59,15 +62,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [loanStatusFilter, setLoanStatusFilter] = useState<LoanStatusFilter>(stored.loanStatusFilter ?? "all");
   const [tagFilter, setTagFilter] = useState(stored.tagFilter ?? "all");
   const [monthFilter, setMonthFilter] = useState(stored.monthFilter ?? "all");
+  const [categoryFilter, setCategoryFilter] = useState(stored.categoryFilter ?? "all");
   const [hideBalance, setHideBalance] = useState(() => {
     try { return typeof window !== "undefined" && localStorage.getItem(PRIVACY_KEY) === "true"; }
     catch { return false; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({ month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter })); }
+    try { localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({ month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter })); }
     catch { /* Storage may be unavailable; state remains usable for this session. */ }
-  }, [month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter]);
+  }, [month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter]);
   useEffect(() => {
     try { localStorage.setItem(PRIVACY_KEY, String(hideBalance)); }
     catch { /* Storage may be unavailable; state remains usable for this session. */ }
@@ -77,9 +81,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const setMonthDate = (date: Date) => setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`);
   const toggleHideBalance = () => setHideBalance((value) => !value);
   const value = useMemo(() => ({ monthDate, setMonthDate, searchTerm, setSearchTerm, filter, setFilter,
-    loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter,
+    loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter,
     hideBalance, setHideBalance, toggleHideBalance }),
-  [monthDate, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, hideBalance]);
+  [monthDate, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter, hideBalance]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }

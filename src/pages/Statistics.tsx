@@ -79,7 +79,7 @@ export default function StatisticsPage() {
   const noAccounts = (accounts || []).length === 0;
 
   const categoryTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
+    const totals: Record<string, { name: string; value: number }> = {};
     (transactions || []).forEach((tx) => {
       const type = tx.type || "expense";
       if (activeType === "loan") {
@@ -87,11 +87,12 @@ export default function StatisticsPage() {
       } else if (type !== activeType) {
         return;
       }
-      const key = tx.categoryName || "Uncategorized";
-      totals[key] = roundMoney((totals[key] || 0) + Number(tx.amount));
+      const id = tx.categoryId != null ? String(tx.categoryId) : "uncategorized";
+      const key = `${id}:${tx.categoryName || "Uncategorized"}`;
+      totals[key] = { name: tx.categoryName || "Uncategorized", value: roundMoney((totals[key]?.value || 0) + Number(tx.amount)) };
     });
     return Object.entries(totals)
-      .map(([name, value]) => ({ name, value }))
+      .map(([key, item]) => ({ id: key.split(":", 1)[0], ...item }))
       .sort((a, b) => b.value - a.value);
   }, [transactions, activeType]);
 
@@ -497,7 +498,7 @@ export default function StatisticsPage() {
                   <Tooltip cursor={false} content={<ChartTooltip currency={currency} />} />
                     <Bar dataKey="value" radius={[12, 12, 0, 0]}>
                       {categoryTotals.map((entry, index) => (
-                        <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
+                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={palette[index % palette.length]} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -513,7 +514,7 @@ export default function StatisticsPage() {
                       activeShape={false}
                     >
                       {categoryTotals.map((entry, index) => (
-                        <Cell key={`cell-${entry.name}`} fill={palette[index % palette.length]} />
+                        <Cell key={`cell-${entry.id}-${entry.name}`} fill={palette[index % palette.length]} />
                       ))}
                     </Pie>
                   </PieChart>
@@ -534,7 +535,12 @@ export default function StatisticsPage() {
 
       <div className="space-y-3">
         {categoryTotals.map((item, index) => (
-          <div key={item.name} className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4">
+          <button
+            key={`${item.id}:${item.name}`}
+            type="button"
+            onClick={() => setLocation(`/transactions?category=${encodeURIComponent(item.id)}&type=${activeType}&month=${monthKey}`)}
+            className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left transition hover:border-primary/30"
+          >
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background">
                 {(() => {
@@ -546,7 +552,7 @@ export default function StatisticsPage() {
               <span className="font-medium">{item.name}</span>
             </div>
             <span className="font-semibold">{currency}{formatMoney(item.value)}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
