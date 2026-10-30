@@ -79,7 +79,9 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
   const remaining = useMemo(() => roundMoney(Math.max(0, totalAmount - totalSettled)), [totalAmount, totalSettled]);
   const percent = totalAmount > 0 ? (totalSettled / totalAmount) * 100 : 0;
 
-  const defaultAccountId = accounts?.[0]?.id ?? null;
+  const defaultAccountId = accounts?.some((account) => account.id === transaction.accountId)
+    ? transaction.accountId!
+    : accounts?.[0]?.id ?? null;
   const [quickMode, setQuickMode] = useState<QuickAmount>("remaining");
   const [customAmount, setCustomAmount] = useState("");
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -88,21 +90,24 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
   const [isDateOpen, setIsDateOpen] = useState(false);
 
   const resolvedAccountId = accountId ?? defaultAccountId;
+  const customAmountValue = customAmount.trim() === "" ? 0 : Number(customAmount);
 
   const settlementAmount = useMemo(() => {
     if (quickMode === "remaining") return remaining;
-    if (quickMode === "half") return roundMoney(totalAmount / 2);
-    if (quickMode === "quarter") return roundMoney(totalAmount / 4);
-    return Number(customAmount) || 0;
-  }, [quickMode, remaining, totalAmount, customAmount]);
+    if (quickMode === "half") return roundMoney(remaining / 2);
+    if (quickMode === "quarter") return roundMoney(remaining / 4);
+    return Number.isFinite(customAmountValue) ? customAmountValue : 0;
+  }, [quickMode, remaining, customAmountValue]);
 
   const selectedAccount = accounts?.find((a) => a.id === resolvedAccountId);
   const accountBalance = selectedAccount ? Number(selectedAccount.balance || 0) : 0;
+  const insufficientFunds = transaction.loanType === "borrow" && settlementAmount > accountBalance + 0.001;
 
   const canSubmit =
     !isAdding &&
     settlementAmount > 0 &&
     settlementAmount <= remaining + 0.001 &&
+    (quickMode !== "custom" || (Number.isFinite(customAmountValue) && customAmountValue > 0 && customAmountValue <= remaining + 0.001)) &&
     resolvedAccountId !== null;
 
   const handleSubmit = () => {
@@ -221,8 +226,8 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                   {(
                     [
                       { key: "remaining", label: "Full", sub: `${currency}${formatMoney(remaining)}` },
-                      { key: "half", label: "50%", sub: `${currency}${formatMoney(roundMoney(totalAmount / 2))}` },
-                      { key: "quarter", label: "25%", sub: `${currency}${formatMoney(roundMoney(totalAmount / 4))}` },
+                      { key: "half", label: "50%", sub: `${currency}${formatMoney(roundMoney(remaining / 2))}` },
+                      { key: "quarter", label: "25%", sub: `${currency}${formatMoney(roundMoney(remaining / 4))}` },
                       { key: "custom", label: "Custom", sub: "Enter" },
                     ] as { key: QuickAmount; label: string; sub: string }[]
                   ).map((opt) => (
@@ -257,6 +262,12 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                       min={0}
                       max={remaining}
                     />
+                    {customAmount.trim() !== "" &&
+                      (!Number.isFinite(customAmountValue) || customAmountValue <= 0 || customAmountValue > remaining + 0.001) && (
+                        <p className="mt-1 text-xs text-destructive">
+                          Enter an amount greater than zero and no more than {currency}{formatMoney(remaining)}.
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -320,6 +331,12 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                   </Popover>
                 </div>
               </div>
+
+              {insufficientFunds && (
+                <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  This payment is greater than the selected account balance ({currency}{formatMoney(accountBalance)}). The account may go below zero.
+                </p>
+              )}
 
               {/* Note */}
               <div className="space-y-1.5">
