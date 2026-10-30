@@ -13,6 +13,7 @@ export interface Category {
   name: string;
   color: string;
   type: "expense" | "income" | "loan";
+  loanType?: "borrow" | "lend" | null;
 }
 
 export interface Transaction {
@@ -305,6 +306,37 @@ class FinanceDatabase extends Dexie {
       transfers: '++id, date, fromAccountId, toAccountId',
       importSnapshots: '++id, createdAt',
     });
+
+    this.version(15).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId',
+      accounts: '++id, &name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+      importSnapshots: '++id, createdAt',
+    }).upgrade(async (tx) => {
+      const categories = await tx.table('categories').toCollection().toArray();
+      const loanTypeByCategoryId = new Map<number, 'borrow' | 'lend'>();
+      for (const category of categories) {
+        const normalizedName = String(category.name ?? '').trim().toLocaleLowerCase();
+        const loanType = category.type === 'loan'
+          ? normalizedName === 'borrow' ? 'borrow' : normalizedName === 'lend' || normalizedName === 'loan' ? 'lend' : null
+          : null;
+        if (category.id !== undefined && loanType) loanTypeByCategoryId.set(category.id, loanType);
+        await tx.table('categories').update(category.id, { loanType });
+      }
+
+      const transactions = await tx.table('transactions').toCollection().toArray();
+      for (const row of transactions) {
+        const loanType = row.type === 'loan'
+          ? loanTypeByCategoryId.get(row.categoryId) ?? row.loanType ?? null
+          : null;
+        await tx.table('transactions').where('id').equals(row.id).modify((record: Record<string, unknown>) => {
+          record.loanType = loanType;
+          delete record.categoryName;
+        });
+      }
+    });
   }
 }
 
@@ -339,8 +371,8 @@ export async function initializeDatabase() {
       { name: 'Interest', color: '#ffd54f', type: 'income' },
       { name: 'Extra', color: '#4fc3f7', type: 'income' },
       { name: 'Other Income', color: '#90a4ae', type: 'income' },
-      { name: 'Borrow', color: '#f06292', type: 'loan' },
-      { name: 'Lend', color: '#4db6ac', type: 'loan' },
+      { name: 'Borrow', color: '#f06292', type: 'loan', loanType: 'borrow' },
+      { name: 'Lend', color: '#4db6ac', type: 'loan', loanType: 'lend' },
     ];
 
     await db.categories.bulkAdd(defaultCategories);
@@ -367,8 +399,8 @@ export async function initializeDatabase() {
       { name: 'Interest', color: '#ffd54f', type: 'income' as const },
       { name: 'Extra', color: '#4fc3f7', type: 'income' as const },
       { name: 'Other Income', color: '#90a4ae', type: 'income' as const },
-      { name: 'Borrow', color: '#f06292', type: 'loan' as const },
-      { name: 'Lend', color: '#4db6ac', type: 'loan' as const },
+      { name: 'Borrow', color: '#f06292', type: 'loan' as const, loanType: 'borrow' as const },
+      { name: 'Lend', color: '#4db6ac', type: 'loan' as const, loanType: 'lend' as const },
     ];
 
     for (const cat of required) {

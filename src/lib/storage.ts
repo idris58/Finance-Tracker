@@ -138,8 +138,14 @@ export class LocalStorage implements IStorage {
 
     const transactions = await query.toArray();
 
+    const categories = await db.categories.toArray();
+    const categoryById = new Map(categories.filter((category) => category.id !== undefined).map((category) => [category.id!, category]));
     const transactionsWithDates = transactions.map((tx) => ({
       ...tx,
+      categoryName: tx.categoryId != null ? categoryById.get(tx.categoryId)?.name ?? null : null,
+      loanType: tx.type === 'loan' && tx.categoryId != null
+        ? categoryById.get(tx.categoryId)?.loanType ?? tx.loanType ?? null
+        : null,
       date: tx.date instanceof Date ? tx.date : new Date(tx.date),
       settlements: Array.isArray(tx.settlements)
         ? tx.settlements.map((s) => ({
@@ -162,13 +168,11 @@ export class LocalStorage implements IStorage {
         throw new Error('Select a valid account before saving the transaction.');
       }
 
-      if (transaction.categoryId && !transaction.categoryName) {
+      if (transaction.categoryId) {
         const cat = await db.categories.get(transaction.categoryId);
         if (cat) {
-          transaction.categoryName = cat.name;
-          if (!transaction.type) {
-            transaction.type = cat.type;
-          }
+          transaction.type = cat.type;
+          transaction.loanType = cat.type === 'loan' ? cat.loanType ?? null : null;
         }
       }
 
@@ -182,14 +186,11 @@ export class LocalStorage implements IStorage {
         transaction.settlements = [];
       }
 
-      if (transaction.type === 'loan' && !transaction.loanType) {
-        transaction.loanType = transaction.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
-      }
-
       transaction.loanStatus = transaction.type === 'loan' ? this.computeLoanStatus(transaction as Transaction) : null;
 
+      const { categoryName: _categoryName, ...transactionRecord } = transaction;
       const id = await db.transactions.add({
-        ...transaction,
+        ...transactionRecord,
         date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
         settlements: transaction.settlements ?? [],
       } as Transaction);
@@ -254,14 +255,16 @@ export class LocalStorage implements IStorage {
       if (merged.categoryId && merged.categoryId !== existing.categoryId) {
         const cat = await db.categories.get(merged.categoryId);
         if (cat) {
-          merged.categoryName = cat.name;
           merged.type = cat.type;
+          merged.loanType = cat.type === 'loan' ? cat.loanType ?? null : null;
         }
       }
 
-      if (merged.type === 'loan' && !merged.loanType) {
-        merged.loanType = merged.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend';
+      if (merged.categoryId && merged.type === 'loan') {
+        const category = await db.categories.get(merged.categoryId);
+        if (category) merged.loanType = category.loanType ?? null;
       }
+      if (merged.type !== 'loan') merged.loanType = null;
       merged.loanStatus = merged.type === 'loan' ? this.computeLoanStatus(merged) : null;
 
       const oldDelta = this.getBalanceDelta(existing);
@@ -310,7 +313,9 @@ export class LocalStorage implements IStorage {
         }
       }
 
-      await db.transactions.update(id, merged);
+      const transactionRecord = { ...merged };
+      delete transactionRecord.categoryName;
+      await db.transactions.update(id, transactionRecord);
       const updated = await db.transactions.get(id);
       if (!updated) {
         throw new Error('Failed to update transaction');
@@ -648,6 +653,9 @@ export class LocalStorage implements IStorage {
             name: cat.name,
             color: cat.color || '#9e9e9e',
             type: cat.type ?? 'expense',
+            loanType: cat.loanType ?? (cat.type === 'loan'
+              ? cat.name.trim().toLowerCase() === 'borrow' ? 'borrow' : cat.name.trim().toLowerCase() === 'lend' || cat.name.trim().toLowerCase() === 'loan' ? 'lend' : null
+              : null),
           } as Category);
         }
       }
@@ -710,6 +718,7 @@ export class LocalStorage implements IStorage {
             const cat = await db.categories.where('name').equals(tx.categoryName).first();
             if (cat) catId = cat.id!;
           }
+          const transactionCategory = catId != null ? await db.categories.get(catId) : undefined;
 
           let accountId = tx.accountId ?? null;
           if (accountId && oldAccountIdToName.has(accountId)) {
@@ -757,14 +766,13 @@ export class LocalStorage implements IStorage {
           await db.transactions.add({
             amount: String(tx.amount ?? '0'),
             categoryId: catId ?? null,
-            categoryName: tx.categoryName ?? null,
             date: new Date(tx.date),
             accountId,
             counterparty: tx.counterparty ?? null,
             note: tx.note ?? null,
             tags: Array.isArray(tx.tags) ? tx.tags : [],
             type: tx.type ?? 'expense',
-            loanType: tx.loanType ?? (tx.type === 'loan' ? (tx.categoryName?.toLowerCase().includes('borrow') ? 'borrow' : 'lend') : null),
+            loanType: tx.type === 'loan' ? transactionCategory?.loanType ?? tx.loanType ?? null : null,
             loanStatus: derivedLoanStatus,
             settlements: remappedSettlements,
           } as Transaction);

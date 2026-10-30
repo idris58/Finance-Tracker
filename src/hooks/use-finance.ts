@@ -146,11 +146,16 @@ export function useCreateTransaction() {
     mutationFn: async (data: InsertTransaction) => {
       return await storage.createTransaction(data);
     },
-    onSuccess: () => {
+    onSuccess: (transaction) => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      toast({ title: "Transaction recorded", description: "Your expense has been logged." });
+      const description = transaction.type === 'income'
+        ? "Your income has been recorded."
+        : transaction.type === 'loan'
+          ? "Your loan has been recorded."
+          : "Your expense has been logged.";
+      toast({ title: "Transaction recorded", description });
     },
     onError: (err) => {
         toast({ title: "Error", description: "Could not add transaction.", variant: "destructive" });

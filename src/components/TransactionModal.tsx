@@ -270,7 +270,7 @@ export function TransactionModal({
                         onClick={() => {
                           field.onChange(cat.id);
                           if (activeType === "loan") {
-                            form.setValue("loanType", cat.name.toLowerCase().includes("borrow") ? "borrow" : "lend");
+                            form.setValue("loanType", cat.loanType ?? null);
                           }
                         }}
                         className={cn(

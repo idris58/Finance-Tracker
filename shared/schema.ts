@@ -14,12 +14,12 @@ export const insertCategorySchema = z.object({
   name: z.string().min(1),
   color: z.string().default("#39ff14"),
   type: transactionTypeSchema.default("expense"),
+  loanType: loanTypeSchema.nullable().optional(),
 });
 
 export const insertTransactionSchema = z.object({
   amount: z.string().min(1),
   categoryId: z.number().optional().nullable(),
-  categoryName: z.string().optional().nullable(),
   date: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)),
   settlementDate: z.date().or(z.string()).transform((val) => val instanceof Date ? val : new Date(val)).optional().nullable(),
   accountId: z.number().positive("Please select an account"),
@@ -53,6 +53,7 @@ export interface Category {
   name: string;
   color: string;
   type: "expense" | "income" | "loan";
+  loanType?: "borrow" | "lend" | null;
 }
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
@@ -69,6 +70,7 @@ export interface Transaction {
   id?: number;
   amount: string;
   categoryId?: number | null;
+  /** Joined from categoryId when transactions are read. */
   categoryName?: string | null;
   date: Date;
   settlementDate?: Date | null;
@@ -144,6 +146,7 @@ export const categoryBackupSchema = z.object({
   name: z.string().min(1, "Category name is required"),
   color: z.string().default("#9e9e9e"),
   type: transactionTypeSchema.default("expense"),
+  loanType: loanTypeSchema.nullable().optional(),
 });
 
 export const transactionBackupSchema = z.object({
