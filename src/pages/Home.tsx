@@ -360,10 +360,17 @@ export default function HomePage() {
               <div key={date} className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>{date}</span>
-                  <span>
-                    {currency}
-                    {formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}
-                  </span>
+                  {activeType === "loan" ? (
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-rose-500">Borrow {currency}{formatMoney(items.filter((tx) => tx.loanType === "borrow").reduce((sum, tx) => sum + Number(tx.amount), 0))}</span>
+                      <span className="text-emerald-500">Lend {currency}{formatMoney(items.filter((tx) => tx.loanType === "lend").reduce((sum, tx) => sum + Number(tx.amount), 0))}</span>
+                    </div>
+                  ) : (
+                    <span>
+                      {currency}
+                      {formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}
+                    </span>
+                  )}
                 </div>
                 <div className="space-y-2">
                   {items.map((tx) => {
