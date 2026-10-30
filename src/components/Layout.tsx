@@ -1,4 +1,4 @@
-﻿import { Link, useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Home, BarChart3, WalletCards, Settings, Plus, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TransactionModal } from "./TransactionModal";

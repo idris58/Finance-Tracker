@@ -107,6 +107,16 @@ export interface Transfer {
   date: Date;
 }
 
+export interface ImportSnapshot {
+  id?: number;
+  createdAt: Date;
+  settings: Settings[];
+  categories: Category[];
+  transactions: Transaction[];
+  accounts: Account[];
+  transfers: Transfer[];
+}
+
 // === API REQUEST TYPES ===
 export type UpdateSettingsRequest = Partial<InsertSettings>;
 export type CreateTransactionRequest = InsertTransaction;

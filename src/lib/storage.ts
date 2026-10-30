@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db, initializeDatabase, type Settings, type Category, type Transaction, type Account, type Transfer, type ImportSnapshot } from './db';
+import { db, initializeDatabase } from './db';
 import { roundMoney, toMoneyString } from './money';
-import type { LoanSettlement } from '@shared/schema';
+import type { Settings, Category, Transaction, Account, Transfer, ImportSnapshot, LoanSettlement } from '@shared/schema';
 
 export interface IStorage {
   // Settings

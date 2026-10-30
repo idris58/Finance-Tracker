@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts, useCreateAccount, useDeleteAccount, useDeleteTransfer, useTransferBetweenAccounts, useTransfers, useUpdateAccount, useUpdateTransfer } from "@/hooks/use-finance";
