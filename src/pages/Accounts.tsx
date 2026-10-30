@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts, useCreateAccount, useDeleteAccount, useDeleteTransfer, useTransferBetweenAccounts, useTransfers, useUpdateAccount, useUpdateTransfer } from "@/hooks/use-finance";
+import { useAccounts, useCreateAccount, useDeleteTransfer, useTransferBetweenAccounts, useTransfers, useUpdateTransfer } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,6 @@ const accountTypes = [
 ] as const;
 
 type AccountForm = {
-  id?: number;
   name: string;
   type: "Cash" | "Bank" | "Mobile";
   balance: string;
@@ -52,16 +52,14 @@ export default function AccountsPage() {
   const { data: accounts } = useAccounts();
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { mutate: createAccount, isPending: isCreating } = useCreateAccount();
-  const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
-  const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
   const { mutate: transferBetweenAccounts, isPending: isTransferring } = useTransferBetweenAccounts();
   const { mutate: updateTransfer, isPending: isUpdatingTransfer } = useUpdateTransfer();
   const { mutate: deleteTransfer } = useDeleteTransfer();
   const { data: transfers } = useTransfers();
+  const [, navigate] = useLocation();
 
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [form, setForm] = useState<AccountForm>({ name: "", type: "Cash", balance: "0" });
   const [transferOpen, setTransferOpen] = useState(false);
   const [editingTransferId, setEditingTransferId] = useState<number | null>(null);
@@ -86,6 +84,7 @@ export default function AccountsPage() {
     : 0;
   const transferAmount = Number(transferForm.amount || 0);
   const insufficientBalance = !!fromAccount && transferAmount > fromBalance;
+  const sameAccountError = !!(transferForm.fromAccountId && transferForm.toAccountId && transferForm.fromAccountId === transferForm.toAccountId);
 
   const accountNameMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -97,26 +96,33 @@ export default function AccountsPage() {
     return map;
   }, [accounts]);
 
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next);
+  // Group accounts by type with subtotals
+  const groupedAccounts = useMemo(() => {
+    const groups = accountTypes.map((type) => ({
+      ...type,
+      accounts: (accounts || []).filter((acc) => acc.type === type.value),
+      subtotal: roundMoney(
+        (accounts || [])
+          .filter((acc) => acc.type === type.value)
+          .reduce((sum, acc) => sum + Number(acc.balance || 0), 0)
+      ),
+    }));
+    return groups.filter((g) => g.accounts.length > 0);
+  }, [accounts]);
+
+  const handleCreateOpenChange = (next: boolean) => {
+    setCreateOpen(next);
     if (!next) {
       setForm({ name: "", type: "Cash", balance: "0" });
     }
   };
 
-  const handleSubmit = () => {
+  const handleCreateSubmit = () => {
     if (!form.name.trim()) return;
-    if (form.id) {
-      updateAccount(
-        { id: form.id, data: { name: form.name, type: form.type, balance: form.balance } },
-        { onSuccess: () => handleOpenChange(false) }
-      );
-    } else {
-      createAccount(
-        { name: form.name, type: form.type, balance: form.balance },
-        { onSuccess: () => handleOpenChange(false) }
-      );
-    }
+    createAccount(
+      { name: form.name, type: form.type, balance: form.balance },
+      { onSuccess: () => handleCreateOpenChange(false) }
+    );
   };
 
   const resetTransferForm = () => {
@@ -165,29 +171,6 @@ export default function AccountsPage() {
     });
     setLogOpen(false);
     setTransferOpen(true);
-  };
-
-  const handleEdit = (account: AccountForm) => {
-    setForm(account);
-    setOpen(true);
-  };
-
-  const handleDelete = () => {
-    if (!form.id) return;
-    setDeleteConfirmOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (!form.id) return;
-    deleteAccount(form.id, {
-      onSuccess: () => {
-        setDeleteConfirmOpen(false);
-        handleOpenChange(false);
-      },
-      onError: () => {
-        setDeleteConfirmOpen(false);
-      },
-    });
   };
 
   return (
@@ -269,6 +252,9 @@ export default function AccountsPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {sameAccountError && (
+                      <p className="text-xs text-rose-500">Cannot transfer to the same account.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Amount</Label>
@@ -390,21 +376,22 @@ export default function AccountsPage() {
               </DialogContent>
             </Dialog>
 
-            <Button onClick={() => setOpen(true)} className="hidden rounded-full whitespace-nowrap sm:inline-flex">
+            <Button onClick={() => setCreateOpen(true)} className="hidden rounded-full whitespace-nowrap sm:inline-flex">
               <Plus className="mr-2 h-4 w-4" /> Add account
             </Button>
           </div>
         </div>
 
-        <Button onClick={() => setOpen(true)} className="w-full rounded-full whitespace-nowrap sm:hidden">
+        <Button onClick={() => setCreateOpen(true)} className="w-full rounded-full whitespace-nowrap sm:hidden">
           <Plus className="mr-2 h-4 w-4" /> Add account
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      {/* Add Account Dialog */}
+      <Dialog open={createOpen} onOpenChange={handleCreateOpenChange}>
         <DialogContent className="rounded-3xl">
           <DialogHeader>
-            <DialogTitle>{form.id ? "Edit account" : "Add account"}</DialogTitle>
+            <DialogTitle>Add account</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -431,76 +418,66 @@ export default function AccountsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Balance</Label>
+              <Label>Initial balance</Label>
               <Input
                 type="number"
                 value={form.balance}
                 onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))}
               />
             </div>
-            <div className={form.id ? "flex gap-2" : ""}>
-              {form.id && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </Button>
-              )}
-              <Button onClick={handleSubmit} disabled={isCreating || isUpdating} className="w-full">
-                {form.id ? "Save changes" : "Create account"}
-              </Button>
-            </div>
+            <Button onClick={handleCreateSubmit} disabled={isCreating} className="w-full">
+              Create account
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this account?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove the account. Deletion is blocked if any transactions use it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <div className="space-y-3">
+      {/* Account list grouped by type */}
+      <div className="space-y-5">
         {(accounts || []).length === 0 ? (
           <EmptyState
             title="No accounts yet"
             hint="Add Cash, Bank, or Mobile Wallet to start tracking balances."
             primaryActionLabel="Add account"
-            onPrimaryAction={() => setOpen(true)}
+            onPrimaryAction={() => setCreateOpen(true)}
           />
         ) : (
-          (accounts || []).map((account) => {
-            const TypeIcon = accountTypes.find((type) => type.value === account.type)?.icon || CreditCard;
+          groupedAccounts.map((group) => {
+            const GroupIcon = group.icon;
             return (
-              <button
-                key={account.id}
-                onClick={() => handleEdit({ id: account.id, name: account.name, type: account.type, balance: account.balance })}
-                className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary")}>
-                    <TypeIcon className="h-5 w-5" />
+              <div key={group.value} className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <GroupIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">{group.label}</span>
+                    <span className="text-xs text-muted-foreground">({group.accounts.length})</span>
                   </div>
-                  <div>
-                    <p className="font-medium">{account.name}</p>
-                    <p className="text-xs text-muted-foreground">{account.type}</p>
-                  </div>
+                  <span className="text-sm font-semibold">
+                    <SensitiveValue>{currency}{formatMoney(group.subtotal)}</SensitiveValue>
+                  </span>
                 </div>
-                <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(Number(account.balance || 0))}</SensitiveValue></span>
-              </button>
+                {group.accounts.map((account) => {
+                  const TypeIcon = accountTypes.find((type) => type.value === account.type)?.icon || CreditCard;
+                  return (
+                    <button
+                      key={account.id}
+                      onClick={() => navigate(`/accounts/${account.id}`)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary")}>
+                          <TypeIcon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{account.name}</p>
+                          <p className="text-xs text-muted-foreground">{account.type}</p>
+                        </div>
+                      </div>
+                      <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(Number(account.balance || 0))}</SensitiveValue></span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })
         )}
@@ -508,4 +485,3 @@ export default function AccountsPage() {
     </div>
   );
 }
-

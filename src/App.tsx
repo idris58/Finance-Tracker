@@ -14,6 +14,7 @@ import { AppStateProvider } from "@/context/AppStateContext";
 import HomePage from "@/pages/Home";
 import StatisticsPage from "@/pages/Statistics";
 import AccountsPage from "@/pages/Accounts";
+import AccountDetailPage from "@/pages/AccountDetail";
 import TransactionsPage from "@/pages/Transactions";
 import SettingsPage from "@/pages/Settings";
 
@@ -29,7 +30,8 @@ function AppRouter() {
       "/settings": "Settings - Finance Tracker",
     };
 
-    document.title = pageTitles[location] ?? "Finance Tracker";
+    const dynamicTitle = location.startsWith("/accounts/") ? "Account - Finance Tracker" : null;
+    document.title = dynamicTitle || (pageTitles[location] ?? "Finance Tracker");
   }, [location]);
 
   return (
@@ -37,6 +39,7 @@ function AppRouter() {
       <Switch>
         <Route path="/" component={HomePage} />
         <Route path="/statistics" component={StatisticsPage} />
+        <Route path="/accounts/:id" component={AccountDetailPage} />
         <Route path="/accounts" component={AccountsPage} />
         <Route path="/transactions" component={TransactionsPage} />
         <Route path="/settings" component={SettingsPage} />
