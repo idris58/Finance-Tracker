@@ -345,6 +345,11 @@ export async function initializeDatabase() {
 
     await db.categories.bulkAdd(defaultCategories);
   } else {
+    const oldLoan = await db.categories.where('name').equals('Loan').first();
+    if (oldLoan) {
+      await db.categories.update(oldLoan.id!, { name: 'Lend', type: 'loan' });
+    }
+
     const required = [
       { name: 'Food', color: '#ff8a65', type: 'expense' as const },
       { name: 'Transport', color: '#64b5f6', type: 'expense' as const },
@@ -375,10 +380,6 @@ export async function initializeDatabase() {
       }
     }
 
-    const oldLoan = await db.categories.where('name').equals('Loan').first();
-    if (oldLoan) {
-      await db.categories.update(oldLoan.id!, { name: 'Lend', type: 'loan' });
-    }
   }
 
   const accountsCount = await db.accounts.count();
