@@ -7,23 +7,13 @@ import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 const baseNavItems = [
   { icon: Home, label: "Home", href: "/" },
   { icon: BarChart3, label: "Statistics", href: "/statistics" },
+  { icon: List, label: "Transactions", href: "/transactions" },
   { icon: WalletCards, label: "Accounts", href: "/accounts" },
-  { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { open, setOpen, openNew, transaction } = useTransactionEditor();
-  const isTransactionsRoute = location === "/transactions";
-  const navItems = isTransactionsRoute
-    ? [
-        baseNavItems[0],
-        { icon: List, label: "Transactions", href: "/transactions" },
-        baseNavItems[2],
-        baseNavItems[3],
-      ]
-    : baseNavItems;
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 md:pb-10 md:pt-8">
@@ -31,8 +21,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <nav className="fixed bottom-3 left-1/2 z-50 w-[94%] max-w-md -translate-x-1/2 rounded-3xl border border-border/60 bg-card/90 px-3 py-3 shadow-[0_18px_50px_-35px_rgba(0,0,0,0.6)] backdrop-blur-md">
-        <div className="grid grid-cols-5 items-center">
-          {navItems.slice(0, 2).map((item) => (
+        <div className="grid grid-cols-6 items-center">
+          {baseNavItems.slice(0, 2).map((item) => (
             <Link key={item.href} href={item.href}>
               <div
                 className={cn(
@@ -55,7 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {navItems.slice(2).map((item) => (
+          {baseNavItems.slice(2).map((item) => (
             <Link key={item.href} href={item.href}>
               <div
                 className={cn(
@@ -68,6 +58,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </Link>
           ))}
+
+          <Link href="/settings">
+            <div
+              aria-label="Settings"
+              title="Settings"
+              className={cn(
+                "flex flex-col items-center gap-1 text-xs font-medium transition-colors",
+                location === "/settings" ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <Settings className={cn("h-5 w-5", location === "/settings" && "drop-shadow-[0_6px_18px_rgba(244,63,94,0.45)]")} />
+              <span className="sr-only">Settings</span>
+            </div>
+          </Link>
         </div>
       </nav>
 
