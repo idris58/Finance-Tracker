@@ -85,6 +85,7 @@ export default function SettingsPage() {
   return (
     <>
     <div className="space-y-8">
+      <h1 className="text-2xl font-semibold">Settings</h1>
       <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Appearance</h2>
