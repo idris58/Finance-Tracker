@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, ChevronLeft, ChevronRight, Search, Zap } from "lucide-react";
 import { useLocation } from "wouter";
@@ -105,7 +105,16 @@ export default function TransactionsPage() {
   const noAccounts = (accounts || []).length === 0;
   const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
 
-  const availableTags = Array.from(new Set((transactions || []).flatMap((tx) => Array.isArray(tx.tags) ? tx.tags : []))).sort();
+  const availableTags = useMemo(
+    () => Array.from(new Set((allTransactions || []).flatMap((tx) => Array.isArray(tx.tags) ? tx.tags : []))).sort(),
+    [allTransactions]
+  );
+
+  useEffect(() => {
+    if (tagFilter !== "all" && !availableTags.includes(tagFilter)) {
+      setTagFilter("all");
+    }
+  }, [availableTags, tagFilter]);
 
   const filteredTx = (transactions || []).filter((tx) => {
     const matchesSearch =
@@ -127,7 +136,7 @@ export default function TransactionsPage() {
   });
 
   const hasAnyTransactions = (allTransactions || []).length > 0;
-  const hasFilters = filter !== "all" || tagFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
+  const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
 
   const emptyState = (() => {
     if (noAccounts) {
