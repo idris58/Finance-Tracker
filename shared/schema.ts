@@ -117,22 +117,7 @@ export interface ImportSnapshot {
   transfers: Transfer[];
 }
 
-// === API REQUEST TYPES ===
 export type UpdateSettingsRequest = Partial<InsertSettings>;
-export type CreateTransactionRequest = InsertTransaction;
-export type CreateCategoryRequest = InsertCategory;
-export type UpdateCategoryRequest = Partial<InsertCategory>;
-export type CreateAccountRequest = InsertAccount;
-export type UpdateAccountRequest = Partial<InsertAccount>;
-
-// === API RESPONSE TYPES ===
-export type DashboardStatsResponse = {
-  totalBalance: number;
-  totalIncome: number;
-  totalExpense: number;
-  totalBorrow: number;
-  totalLend: number;
-};
 
 // === BACKUP & EXPORT SCHEMA ===
 export const CURRENT_SCHEMA_VERSION = 1;

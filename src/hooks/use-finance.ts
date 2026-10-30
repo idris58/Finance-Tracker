@@ -17,7 +17,6 @@ import {
   type Settings,
   type Account,
   type Transfer,
-  type DashboardStatsResponse,
   type LoanSettlement,
 } from "@shared/schema";
 
@@ -106,7 +105,6 @@ export function useUpdateSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Settings saved", description: "Your financial preferences have been updated." });
     },
     onError: () => {
@@ -148,7 +146,6 @@ export function useCreateTransaction() {
     },
     onSuccess: (transaction) => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       const description = transaction.type === 'income'
         ? "Your income has been recorded."
@@ -173,7 +170,6 @@ export function useUpdateTransaction() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Transaction updated", description: "Changes saved successfully." });
     },
@@ -193,7 +189,6 @@ export function useDeleteTransaction() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Transaction deleted", description: "Record removed successfully." });
     },
@@ -217,7 +212,6 @@ export function useAddLoanSettlement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Settlement recorded", description: "Loan payment has been applied." });
     },
@@ -241,7 +235,6 @@ export function useDeleteLoanSettlement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast({ title: "Settlement removed", description: "Payment entry has been reversed." });
     },
@@ -284,7 +277,6 @@ export function useCreateAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account added", description: "New account created successfully." });
     },
     onError: (error: any) => {
@@ -307,7 +299,6 @@ export function useUpdateAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account updated", description: "Account updated successfully." });
     },
     onError: (error: any) => {
@@ -330,7 +321,6 @@ export function useDeleteAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: "Account deleted", description: "Account removed successfully." });
     },
     onError: (error: any) => {
@@ -353,7 +343,6 @@ export function useTransferBetweenAccounts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       toast({ title: "Transfer complete", description: "Balances updated successfully." });
     },
@@ -373,7 +362,6 @@ export function useUpdateTransfer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: 'Transfer updated', description: 'Transfer details and balances were updated.' });
     },
     onError: (error: any) => toast({ title: 'Transfer update failed', description: error?.message || 'Could not update transfer.', variant: 'destructive' }),
@@ -388,7 +376,6 @@ export function useDeleteTransfer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
       toast({ title: 'Transfer deleted', description: 'The transfer was reversed and removed.' });
     },
     onError: (error: any) => toast({ title: 'Transfer deletion failed', description: error?.message || 'Could not delete transfer.', variant: 'destructive' }),
@@ -397,47 +384,6 @@ export function useDeleteTransfer() {
 
 
 
-// --- Stats ---
-export function useStats() {
-  return useQuery({
-    queryKey: ['stats'],
-    queryFn: async (): Promise<DashboardStatsResponse> => {
-      const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const transactions = await storage.getTransactions(month);
-
-      const accounts = await storage.getAccounts();
-      const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
-
-      const totalExpense = transactions
-        .filter((tx) => tx.type === 'expense')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
-      const totalIncome = transactions
-        .filter((tx) => tx.type === 'income')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
-      const totalBorrow = transactions
-        .filter((tx) => tx.type === 'loan' && tx.loanType === 'borrow' && tx.loanStatus !== 'settled')
-        .reduce((sum, tx) => {
-          const settled = (tx.settlements || []).reduce((s, p) => s + Number(p.amount), 0);
-          return sum + Math.max(0, Number(tx.amount) - settled);
-        }, 0);
-      const totalLend = transactions
-        .filter((tx) => tx.type === 'loan' && tx.loanType === 'lend' && tx.loanStatus !== 'settled')
-        .reduce((sum, tx) => {
-          const settled = (tx.settlements || []).reduce((s, p) => s + Number(p.amount), 0);
-          return sum + Math.max(0, Number(tx.amount) - settled);
-        }, 0);
-
-      return {
-        totalBalance,
-        totalIncome,
-        totalExpense,
-        totalBorrow,
-        totalLend,
-      };
-    },
-  });
-}
 
 // --- Data Management ---
 
