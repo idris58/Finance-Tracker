@@ -72,24 +72,45 @@ const ensureGisLoaded = async () => {
   if (googleWindow.google?.accounts?.oauth2) return;
   if (gisLoader) return gisLoader;
 
-  gisLoader = new Promise<void>((resolve, reject) => {
+  const loadPromise = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector(`script[src="${GOOGLE_GIS_SCRIPT}"]`) as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Failed to load Google Identity script.")), { once: true });
-      return;
+      if (existing.dataset.loadFailed === "true") {
+        existing.remove();
+      } else {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => {
+          existing.dataset.loadFailed = "true";
+          reject(new Error("Failed to load Google Identity script."));
+        }, { once: true });
+        return;
+      }
     }
 
     const script = document.createElement("script");
     script.src = GOOGLE_GIS_SCRIPT;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Identity script."));
+    script.onload = () => {
+      if ((window as GoogleWindow).google?.accounts?.oauth2) resolve();
+      else reject(new Error("Google Identity API is unavailable."));
+    };
+    script.onerror = () => {
+      script.dataset.loadFailed = "true";
+      reject(new Error("Failed to load Google Identity script."));
+    };
     document.head.appendChild(script);
   });
 
-  return gisLoader;
+  gisLoader = loadPromise;
+  try {
+    await loadPromise;
+  } catch (error) {
+    if (gisLoader === loadPromise) gisLoader = null;
+    const failedScript = document.querySelector(`script[src="${GOOGLE_GIS_SCRIPT}"]`) as HTMLScriptElement | null;
+    if (failedScript?.dataset.loadFailed === "true") failedScript.remove();
+    throw error;
+  }
 };
 
 const ensureTokenClient = async () => {
