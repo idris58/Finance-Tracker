@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction, type ToastActionElement } from "@/components/ui/toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, isCloudDriveConnected, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
 import { 
   CURRENT_SCHEMA_VERSION,
   backupFileSchema,
@@ -522,14 +522,17 @@ export function useCloudBackupStatus() {
     queryKey: ["cloud-backup-status"],
     queryFn: async () => {
       const saved = readCloudBackupState();
+      const tokenIsValid = isCloudDriveConnected();
       return {
-        connected: saved.connected,
+        connected: saved.connected && tokenIsValid,
+        reconnectRequired: saved.connected && !tokenIsValid,
         lastBackupAt: saved.lastBackupAt ?? null,
         email: saved.email ?? null,
       };
     },
     initialData: {
-      connected: initial.connected,
+      connected: initial.connected && isCloudDriveConnected(),
+      reconnectRequired: initial.connected && !isCloudDriveConnected(),
       lastBackupAt: initial.lastBackupAt ?? null,
       email: initial.email ?? null,
     },

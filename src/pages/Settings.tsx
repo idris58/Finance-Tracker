@@ -160,7 +160,7 @@ export default function SettingsPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm">
                   <p className="font-medium">
-                    Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
+                    Status: {cloudStatus.data?.connected ? "Connected" : cloudStatus.data?.reconnectRequired ? "Reconnect required" : "Not connected"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {cloudStatus.data?.lastBackupAt
