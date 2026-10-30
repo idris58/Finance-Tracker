@@ -26,6 +26,8 @@ const filterTabs = [
   { id: "loan", label: "Loan" },
 ] as const;
 
+const PAGE_SIZE = 30;
+
 const loanStatusTabs = [
   { id: "all", label: "All" },
   { id: "open", label: "Open" },
@@ -84,6 +86,11 @@ export default function TransactionsPage() {
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filter, monthFilter, tagFilter, categoryFilter, loanStatusFilter, searchTerm]);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
   useEffect(() => {
@@ -187,18 +194,29 @@ export default function TransactionsPage() {
     return matchesSearch && matchesFilter && matchesTag && matchesCategory && matchesLoanStatus;
   });
 
-  const sortedFilteredTx = [...filteredTx].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const groupedTx = sortedFilteredTx.reduce<Record<string, typeof sortedFilteredTx>>((groups, tx) => {
-    const key = format(new Date(tx.date), "yyyy-MM-dd");
-    (groups[key] ??= []).push(tx);
-    return groups;
-  }, {});
-  const summary = sortedFilteredTx.reduce((totals, tx) => {
-    const amount = Number(tx.amount) || 0;
-    if (tx.type === "income" || (tx.type === "loan" && tx.loanType === "borrow")) totals.income += amount;
-    else if ((tx.type || "expense") === "expense" || (tx.type === "loan" && tx.loanType === "lend")) totals.expense += amount;
-    return totals;
-  }, { income: 0, expense: 0 });
+    const sortedFilteredTx = useMemo(
+    () => [...filteredTx].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [filteredTx]
+  );
+  const visibleTx = useMemo(
+    () => sortedFilteredTx.slice(0, visibleCount),
+    [sortedFilteredTx, visibleCount]
+  );
+  const groupedTx = useMemo(() => {
+    return visibleTx.reduce<Record<string, typeof visibleTx>>((groups, tx) => {
+      const key = format(new Date(tx.date), "yyyy-MM-dd");
+      (groups[key] ??= []).push(tx);
+      return groups;
+    }, {});
+  }, [visibleTx]);
+  const summary = useMemo(() => {
+    return sortedFilteredTx.reduce((totals, tx) => {
+      const amount = Number(tx.amount) || 0;
+      if (tx.type === "income" || (tx.type === "loan" && tx.loanType === "borrow")) totals.income += amount;
+      else if ((tx.type || "expense") === "expense" || (tx.type === "loan" && tx.loanType === "lend")) totals.expense += amount;
+      return totals;
+    }, { income: 0, expense: 0 });
+  }, [sortedFilteredTx]);
   const categoryName = (id: string) => id === "uncategorized"
     ? "Uncategorized"
     : categories?.find((category) => String(category.id) === id)?.name ?? "All categories";
@@ -345,6 +363,32 @@ export default function TransactionsPage() {
             </div>
           </section>
         ))}
+
+        {visibleCount < sortedFilteredTx.length && (
+          <div className="flex flex-col items-center justify-center gap-2 pt-2 pb-4">
+            <p className="text-xs text-muted-foreground">
+              Showing {visibleTx.length} of {sortedFilteredTx.length} transactions
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="rounded-full px-6"
+                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+              >
+                Load more
+              </Button>
+              {sortedFilteredTx.length - visibleTx.length > PAGE_SIZE && (
+                <Button
+                  variant="ghost"
+                  className="rounded-full text-xs text-muted-foreground"
+                  onClick={() => setVisibleCount(sortedFilteredTx.length)}
+                >
+                  Load all ({sortedFilteredTx.length})
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
   );
