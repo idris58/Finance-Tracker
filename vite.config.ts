@@ -7,11 +7,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: [
         "favicon.png",
         "icon-192.png",
         "icon-512.png",
+        "icon-maskable-512.png",
+        "apple-touch-icon.png",
         "screenshot-wide.jpg",
         "screenshot-narrow.jpg",
       ],
@@ -37,6 +39,40 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
+          },
+          {
+            src: "/icon-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+        shortcuts: [
+          {
+            name: "Add Expense",
+            short_name: "Expense",
+            description: "Quickly record a new expense",
+            url: "/?action=expense",
+            icons: [
+              {
+                src: "/icon-192.png",
+                sizes: "192x192",
+                type: "image/png",
+              },
+            ],
+          },
+          {
+            name: "Add Income",
+            short_name: "Income",
+            description: "Quickly record a new income",
+            url: "/?action=income",
+            icons: [
+              {
+                src: "/icon-192.png",
+                sizes: "192x192",
+                type: "image/png",
+              },
+            ],
           },
         ],
         screenshots: [

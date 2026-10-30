@@ -67,10 +67,12 @@ export function TransactionModal({
   open,
   onOpenChange,
   transaction,
+  initialType,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
+  initialType?: TxType;
 }) {
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
@@ -138,7 +140,8 @@ export function TransactionModal({
       return;
     }
 
-    setActiveType("expense");
+    const targetType = initialType ?? "expense";
+    setActiveType(targetType);
     form.reset({
       amount: "",
       categoryId: 0,
@@ -146,12 +149,12 @@ export function TransactionModal({
       counterparty: "",
       note: "",
       date: new Date(),
-      type: "expense",
+      type: targetType,
       loanType: null,
       tags: [],
     });
     setTagDraft("");
-  }, [open, defaultAccountId, form, transaction]);
+  }, [open, defaultAccountId, form, transaction, initialType]);
 
   useEffect(() => {
     if (!open) return;

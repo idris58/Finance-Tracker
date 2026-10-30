@@ -14,7 +14,7 @@ const baseNavItems = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { open, setOpen, openNew, transaction } = useTransactionEditor();
+  const { open, setOpen, openNew, transaction, initialType } = useTransactionEditor();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -71,7 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center justify-center">
             <button
-              onClick={openNew}
+              onClick={() => openNew()}
               className="-mt-10 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_16px_35px_-18px_rgba(244,63,94,0.9)] ring-4 ring-background transition-transform hover:-translate-y-1"
             >
               <Plus className="h-6 w-6" />
@@ -94,7 +94,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <TransactionModal open={open} onOpenChange={setOpen} transaction={transaction ?? undefined} />
+      <TransactionModal open={open} onOpenChange={setOpen} transaction={transaction ?? undefined} initialType={initialType} />
     </div>
   );
 }

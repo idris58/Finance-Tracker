@@ -9,6 +9,8 @@ import { Layout } from "@/components/Layout";
 import { ThemeProvider } from "next-themes";
 import { TransactionEditorProvider } from "@/components/TransactionEditorProvider";
 import { AppStateProvider } from "@/context/AppStateContext";
+import { PwaUpdateToast } from "@/components/PwaUpdateToast";
+import { ThemeColorMeta } from "@/components/ThemeColorMeta";
 
 // Lazy load pages for better performance (optional, but good practice)
 import HomePage from "@/pages/Home";
@@ -53,15 +55,17 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <ThemeColorMeta />
         <AppStateProvider>
-        <TransactionEditorProvider>
-          <WouterRouter>
-            <TooltipProvider>
-              <AppRouter />
-              <Toaster />
-            </TooltipProvider>
-          </WouterRouter>
-        </TransactionEditorProvider>
+          <TransactionEditorProvider>
+            <WouterRouter>
+              <TooltipProvider>
+                <AppRouter />
+                <Toaster />
+                <PwaUpdateToast />
+              </TooltipProvider>
+            </WouterRouter>
+          </TransactionEditorProvider>
         </AppStateProvider>
       </ThemeProvider>
     </QueryClientProvider>
