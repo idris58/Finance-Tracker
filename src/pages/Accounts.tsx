@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
+import { SensitiveValue } from "@/context/AppStateContext";
 import { EmptyState } from "@/components/EmptyState";
 
 const accountTypes = [
@@ -278,7 +279,7 @@ export default function AccountsPage() {
                     />
                     {insufficientBalance && (
                       <p className="text-xs text-rose-500">
-                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{formatMoney(fromBalance)}.
+                        Not enough balance in {fromAccount?.name || "selected account"}. Available <SensitiveValue>{currency}{formatMoney(fromBalance)}</SensitiveValue>.
                       </p>
                     )}
                   </div>
@@ -352,7 +353,7 @@ export default function AccountsPage() {
                           <span className="font-medium">
                             {(accountNameMap.get(item.fromAccountId) || "Unknown")} {" -> "} {(accountNameMap.get(item.toAccountId) || "Unknown")}
                           </span>
-                          <span className="font-semibold">{currency}{formatMoney(Number(item.amount))}</span>
+                          <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(Number(item.amount))}</SensitiveValue></span>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground">
                           {format(new Date(item.date), "MMM d, yyyy p")}
@@ -498,7 +499,7 @@ export default function AccountsPage() {
                     <p className="text-xs text-muted-foreground">{account.type}</p>
                   </div>
                 </div>
-                <span className="font-semibold">{currency}{formatMoney(Number(account.balance || 0))}</span>
+                <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(Number(account.balance || 0))}</SensitiveValue></span>
               </button>
             );
           })

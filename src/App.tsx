@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/Layout";
 import { ThemeProvider } from "next-themes";
 import { TransactionEditorProvider } from "@/components/TransactionEditorProvider";
+import { AppStateProvider } from "@/context/AppStateContext";
 
 // Lazy load pages for better performance (optional, but good practice)
 import HomePage from "@/pages/Home";
@@ -49,6 +50,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <AppStateProvider>
         <TransactionEditorProvider>
           <WouterRouter>
             <TooltipProvider>
@@ -57,6 +59,7 @@ function App() {
             </TooltipProvider>
           </WouterRouter>
         </TransactionEditorProvider>
+        </AppStateProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

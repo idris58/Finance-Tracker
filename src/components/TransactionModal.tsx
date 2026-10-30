@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney } from "@/lib/money";
+import { SensitiveValue, useAppState } from "@/context/AppStateContext";
 
 const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettlementAccountId: true, settlementDate: true }).extend({
   amount: z.string()
@@ -65,6 +66,7 @@ export function TransactionModal({
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
 }) {
+  const { hideBalance } = useAppState();
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
   const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
@@ -139,7 +141,7 @@ export function TransactionModal({
   const onSubmit = (values: FormValues) => {
     const settledTotal = (transaction?.settlements ?? []).reduce((sum, settlement) => sum + Number(settlement.amount), 0);
     if (transaction?.type === "loan" && Number(values.amount) + 0.001 < settledTotal) {
-      form.setError("amount", { message: `Amount cannot be less than the settled total (${formatMoney(settledTotal)}).` });
+      form.setError("amount", { message: hideBalance ? "Amount cannot be less than the settled total." : `Amount cannot be less than the settled total (${formatMoney(settledTotal)}).` });
       return;
     }
     const tags = parseTags(tagsInput);
@@ -233,7 +235,7 @@ export function TransactionModal({
                     <Input
                       {...field}
                       id="tx-amount"
-                      type="number"
+                      type={hideBalance ? "password" : "number"}
                       placeholder="0.00"
                       inputMode="decimal"
                       className="pl-8 text-xl font-bold tracking-tight"
@@ -241,7 +243,7 @@ export function TransactionModal({
                   </div>
                   {isEditMode && activeType === "loan" && totalSettled > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Settled so far: {currency}{formatMoney(totalSettled)}. Amount must be at least this much.
+                      Settled so far: <SensitiveValue>{currency}{formatMoney(totalSettled)}</SensitiveValue>. Amount must be at least this much.
                     </p>
                   )}
                   <FormMessage />
@@ -322,7 +324,7 @@ export function TransactionModal({
                           <SelectItem key={account.id} value={String(account.id)}>
                             <span className="font-medium">{account.name}</span>
                             <span className="ml-2 text-xs text-muted-foreground">
-                              {currency}{formatMoney(Number(account.balance || 0))}
+                              <SensitiveValue>{currency}{formatMoney(Number(account.balance || 0))}</SensitiveValue>
                             </span>
                           </SelectItem>
                         ))}
@@ -331,7 +333,7 @@ export function TransactionModal({
                     {selectedAccount && (
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">
-                          Balance: {currency}{formatMoney(Number(selectedAccount.balance || 0))}
+                          Balance: <SensitiveValue>{currency}{formatMoney(Number(selectedAccount.balance || 0))}</SensitiveValue>
                         </p>
                         {activeType === "expense" && Number(watchAmount) > Number(selectedAccount.balance || 0) && (
                           <p className="text-xs text-amber-600 dark:text-amber-400">

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Transaction } from "@shared/schema";
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 
 type TransactionEditorContextValue = {
   open: boolean;
@@ -14,6 +15,7 @@ const TransactionEditorContext = createContext<TransactionEditorContextValue | n
 export function TransactionEditorProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpenState] = useState(false);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
+  useHistoryBackDismiss(open, () => setOpenState(false));
 
   const openNew = useCallback(() => {
     setTransaction(null);

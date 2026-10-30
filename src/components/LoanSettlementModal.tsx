@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
+import { SensitiveValue, useAppState } from "@/context/AppStateContext";
 
 interface Props {
   open: boolean;
@@ -59,6 +60,7 @@ function ProgressBar({ percent, status }: { percent: number; status: string }) {
 }
 
 export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) {
+  const { hideBalance } = useAppState();
   const { data: accounts } = useAccounts();
   const { mutate: addSettlement, isPending: isAdding } = useAddLoanSettlement();
   const { mutate: deleteSettlement, isPending: isDeleting } = useDeleteLoanSettlement();
@@ -188,19 +190,19 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</p>
                 <p className="mt-1 text-base font-semibold">
-                  {currency}{formatMoney(totalAmount)}
+                  <SensitiveValue>{currency}{formatMoney(totalAmount)}</SensitiveValue>
                 </p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Settled</p>
                 <p className={cn("mt-1 text-base font-semibold", totalSettled > 0 ? "text-emerald-500" : "text-muted-foreground")}>
-                  {currency}{formatMoney(totalSettled)}
+                  <SensitiveValue>{currency}{formatMoney(totalSettled)}</SensitiveValue>
                 </p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Remaining</p>
                 <p className={cn("mt-1 text-base font-semibold", remaining > 0 ? statusColor : "text-emerald-500")}>
-                  {currency}{formatMoney(remaining)}
+                  <SensitiveValue>{currency}{formatMoney(remaining)}</SensitiveValue>
                 </p>
               </div>
             </div>
@@ -225,11 +227,11 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                 <div className="grid grid-cols-4 gap-2">
                   {(
                     [
-                      { key: "remaining", label: "Full", sub: `${currency}${formatMoney(remaining)}` },
-                      { key: "half", label: "50%", sub: `${currency}${formatMoney(roundMoney(remaining / 2))}` },
-                      { key: "quarter", label: "25%", sub: `${currency}${formatMoney(roundMoney(remaining / 4))}` },
-                      { key: "custom", label: "Custom", sub: "Enter" },
-                    ] as { key: QuickAmount; label: string; sub: string }[]
+                      { key: "remaining", label: "Full", sub: remaining },
+                      { key: "half", label: "50%", sub: roundMoney(remaining / 2) },
+                      { key: "quarter", label: "25%", sub: roundMoney(remaining / 4) },
+                      { key: "custom", label: "Custom", sub: null },
+                    ] as { key: QuickAmount; label: string; sub: number | null }[]
                   ).map((opt) => (
                     <button
                       key={opt.key}
@@ -243,7 +245,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                       )}
                     >
                       <span>{opt.label}</span>
-                      <span className="text-[9px] font-normal opacity-70">{opt.sub}</span>
+                      <span className="text-[9px] font-normal opacity-70">{opt.sub === null ? "Enter" : <SensitiveValue>{currency}{formatMoney(opt.sub)}</SensitiveValue>}</span>
                     </button>
                   ))}
                 </div>
@@ -254,7 +256,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                       {currency}
                     </span>
                     <Input
-                      type="number"
+                      type={hideBalance ? "password" : "number"}
                       placeholder="0.00"
                       className="pl-8 text-lg font-semibold"
                       value={customAmount}
@@ -265,7 +267,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                     {customAmount.trim() !== "" &&
                       (!Number.isFinite(customAmountValue) || customAmountValue <= 0 || customAmountValue > remaining + 0.001) && (
                         <p className="mt-1 text-xs text-destructive">
-                          Enter an amount greater than zero and no more than {currency}{formatMoney(remaining)}.
+                          Enter an amount greater than zero and no more than <SensitiveValue>{currency}{formatMoney(remaining)}</SensitiveValue>.
                         </p>
                       )}
                   </div>
@@ -275,7 +277,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                   <div className="flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2">
                     <Wallet className="h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-primary">
-                      {currency}{formatMoney(settlementAmount)} will be applied
+                      <SensitiveValue>{currency}{formatMoney(settlementAmount)}</SensitiveValue> will be applied
                     </p>
                   </div>
                 )}
@@ -299,7 +301,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                         <SelectItem key={acc.id} value={String(acc.id)}>
                           <span className="font-medium">{acc.name}</span>
                           <span className="ml-2 text-xs text-muted-foreground">
-                            {currency}{formatMoney(Number(acc.balance || 0))}
+                            <SensitiveValue>{currency}{formatMoney(Number(acc.balance || 0))}</SensitiveValue>
                           </span>
                         </SelectItem>
                       ))}
@@ -334,7 +336,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
 
               {insufficientFunds && (
                 <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                  This payment is greater than the selected account balance ({currency}{formatMoney(accountBalance)}). The account may go below zero.
+                  This payment is greater than the selected account balance (<SensitiveValue>{currency}{formatMoney(accountBalance)}</SensitiveValue>). The account may go below zero.
                 </p>
               )}
 
@@ -357,7 +359,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
               >
                 {isAdding
                   ? "Recording…"
-                  : `Record ${currency}${formatMoney(settlementAmount)} Payment`}
+                  : <><span>Record </span><SensitiveValue>{currency}{formatMoney(settlementAmount)}</SensitiveValue><span> Payment</span></>}
               </Button>
             </>
           )}
@@ -382,7 +384,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                   Payment History ({settlements.length})
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Total: {currency}{formatMoney(totalSettled)}
+                  Total: <SensitiveValue>{currency}{formatMoney(totalSettled)}</SensitiveValue>
                 </p>
               </div>
               <div className="space-y-2">
@@ -399,7 +401,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                            {currency}{formatMoney(Number(s.amount))}
+                            <SensitiveValue>{currency}{formatMoney(Number(s.amount))}</SensitiveValue>
                           </p>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
@@ -431,7 +433,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remove this payment?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              The {currency}{formatMoney(Number(s.amount))} payment will be reversed and account balances will be recalculated.
+                              The <SensitiveValue>{currency}{formatMoney(Number(s.amount))}</SensitiveValue> payment will be reversed and account balances will be recalculated.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

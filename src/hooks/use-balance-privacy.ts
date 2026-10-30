@@ -1,21 +1,6 @@
-import { useEffect, useState } from "react";
-
-const STORAGE_KEY = "hideBalance";
+import { useAppState } from "@/context/AppStateContext";
 
 export function useBalancePrivacy() {
-  const [hideBalance, setHideBalance] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  });
-
-  const toggleHideBalance = () => {
-    setHideBalance((prev) => !prev);
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, String(hideBalance));
-  }, [hideBalance]);
-
+  const { hideBalance, toggleHideBalance } = useAppState();
   return { hideBalance, toggleHideBalance };
 }
