@@ -6,7 +6,7 @@ import { useAccounts, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
-import { SensitiveValue, useAppState } from "@/context/AppStateContext";
+import { useAppState } from "@/context/AppStateContext";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
@@ -222,7 +222,7 @@ export default function HomePage() {
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
           <p className="text-sm text-muted-foreground">Total expenditure</p>
           <div className="mt-2 text-2xl font-semibold text-foreground">
-            <SensitiveValue>{currency}{formatMoney(totals.totalExpense)}</SensitiveValue>
+            {currency}{formatMoney(totals.totalExpense)}
           </div>
         </div>
       )}
@@ -231,7 +231,7 @@ export default function HomePage() {
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
           <p className="text-sm text-muted-foreground">Total income</p>
           <div className="mt-2 text-2xl font-semibold text-foreground">
-            <SensitiveValue>{currency}{formatMoney(totals.totalIncome)}</SensitiveValue>
+            {currency}{formatMoney(totals.totalIncome)}
           </div>
         </div>
       )}
@@ -242,13 +242,13 @@ export default function HomePage() {
             <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
               <p className="text-xs text-muted-foreground">Borrow</p>
               <div className="mt-2 text-xl font-semibold text-rose-500">
-                <SensitiveValue>{currency}{formatMoney(totals.totalBorrow)}</SensitiveValue>
+                {currency}{formatMoney(totals.totalBorrow)}
               </div>
             </div>
             <div className="rounded-3xl border border-border/60 bg-card/80 p-4">
               <p className="text-xs text-muted-foreground">Lend</p>
               <div className="mt-2 text-xl font-semibold text-emerald-500">
-                <SensitiveValue>{currency}{formatMoney(totals.totalLend)}</SensitiveValue>
+                {currency}{formatMoney(totals.totalLend)}
               </div>
             </div>
           </div>
@@ -314,14 +314,14 @@ export default function HomePage() {
                                 />
                               </div>
                               <p className="text-[10px] text-muted-foreground">
-                                {Math.round(percent)}% paid · <SensitiveValue>{currency}{formatMoney(remaining)}</SensitiveValue> left
+                                {Math.round(percent)}% paid · {currency}{formatMoney(remaining)} left
                               </p>
                             </div>
                           </div>
                         </div>
                         <p className="ml-3 shrink-0 font-semibold text-foreground">
                           {tx.loanType === "borrow" ? "+" : "-"}
-                          <SensitiveValue>{currency}{formatMoney(Number(tx.amount))}</SensitiveValue>
+                          {currency}{formatMoney(Number(tx.amount))}
                         </p>
                       </button>
                       <div className="border-t border-border/40 px-4 pb-3 pt-2">
@@ -365,13 +365,13 @@ export default function HomePage() {
                   <span>{date}</span>
                   {activeType === "loan" ? (
                     <div className="flex gap-3 text-xs">
-                      <span className="text-rose-500">Borrow <SensitiveValue>{currency}{formatMoney(items.filter((tx) => tx.loanType === "borrow").reduce((sum, tx) => sum + Number(tx.amount), 0))}</SensitiveValue></span>
-                      <span className="text-emerald-500">Lend <SensitiveValue>{currency}{formatMoney(items.filter((tx) => tx.loanType === "lend").reduce((sum, tx) => sum + Number(tx.amount), 0))}</SensitiveValue></span>
+                      <span className="text-rose-500">Borrow {currency}{formatMoney(items.filter((tx) => tx.loanType === "borrow").reduce((sum, tx) => sum + Number(tx.amount), 0))}</span>
+                      <span className="text-emerald-500">Lend {currency}{formatMoney(items.filter((tx) => tx.loanType === "lend").reduce((sum, tx) => sum + Number(tx.amount), 0))}</span>
                     </div>
                   ) : (
                     <span>
                       {currency}
-                      <SensitiveValue>{currency}{formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}</SensitiveValue>
+                      {currency}{formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}
                     </span>
                   )}
                 </div>
@@ -424,7 +424,7 @@ export default function HomePage() {
                             </p>
                             {tx.type === "loan" && tx.loanStatus === "partial" && (
                               <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                Remaining: <SensitiveValue>{currency}{formatMoney(txRemaining)}</SensitiveValue>
+                                Remaining: {currency}{formatMoney(txRemaining)}
                               </p>
                             )}
                             {tx.counterparty && (
@@ -436,7 +436,7 @@ export default function HomePage() {
                           <div className="text-right">
                             <p className="font-semibold text-foreground">
                               {activeType === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
-                              <SensitiveValue>{currency}{formatMoney(Number(tx.amount))}</SensitiveValue>
+                              {currency}{formatMoney(Number(tx.amount))}
                             </p>
                           </div>
                           {isUnsettledLoan && (

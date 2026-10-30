@@ -13,7 +13,7 @@ import { getCategoryIcon } from "@/lib/category-icons";
 import { EmptyState } from "@/components/EmptyState";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
-import { SensitiveValue, useAppState } from "@/context/AppStateContext";
+import { useAppState } from "@/context/AppStateContext";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import type { Transaction } from "@shared/schema";
@@ -70,14 +70,14 @@ function LoanProgressBar({ tx, currency }: { tx: Transaction; currency: string }
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span>{Math.round(percent)}% paid</span>
-        {remaining > 0 && <span><SensitiveValue>{currency}{formatMoney(remaining)}</SensitiveValue> left</span>}
+        {remaining > 0 && <span>{currency}{formatMoney(remaining)} left</span>}
       </div>
     </div>
   );
 }
 
 export default function TransactionsPage() {
-  const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, hideBalance } = useAppState();
+  const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter } = useAppState();
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
@@ -348,7 +348,7 @@ export default function TransactionsPage() {
               <button
                 onClick={() => tx.id && openEdit(tx)}
                 className="flex w-full items-start justify-between p-4 text-left"
-                aria-label={`${tx.categoryName ?? "Transaction"}, ${isPositive ? "+" : "-"}${hideBalance ? "hidden amount" : `${currency}${formatMoney(Number(tx.amount))}`}, ${format(new Date(tx.date), "MMM d, yyyy")}`}
+                aria-label={`${tx.categoryName ?? "Transaction"}, ${isPositive ? "+" : "-"}${currency}${formatMoney(Number(tx.amount))}, ${format(new Date(tx.date), "MMM d, yyyy")}`}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-background">
@@ -389,7 +389,7 @@ export default function TransactionsPage() {
                 </div>
                 <div className="ml-4 shrink-0 text-right">
                   <p className={cn("font-semibold", isPositive ? "text-emerald-500" : "text-foreground")}>
-                    {isPositive ? "+" : "-"}<SensitiveValue>{currency}{formatMoney(Number(tx.amount))}</SensitiveValue>
+                    {isPositive ? "+" : "-"}{currency}{formatMoney(Number(tx.amount))}
                   </p>
                   <p className="text-xs text-muted-foreground">{format(new Date(tx.date), "p")}</p>
                 </div>

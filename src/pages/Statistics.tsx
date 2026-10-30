@@ -6,7 +6,7 @@ import { useLocation } from "wouter";
 import { useAccounts, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { SensitiveValue, useAppState } from "@/context/AppStateContext";
+import { useAppState } from "@/context/AppStateContext";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney, roundMoney } from "@/lib/money";
@@ -50,7 +50,7 @@ const ChartTooltip = ({
   return (
     <div className="rounded-xl border border-border/70 bg-card px-3 py-2 shadow-lg">
       <p className="text-xs font-medium text-foreground">{name}</p>
-      <p className="text-sm font-semibold text-foreground"><SensitiveValue>{currency}{formatMoney(value)}</SensitiveValue></p>
+      <p className="text-sm font-semibold text-foreground">{currency}{formatMoney(value)}</p>
     </div>
   );
 };
@@ -303,11 +303,11 @@ export default function StatisticsPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total expense</p>
-                  <p className="mt-2 text-lg font-semibold"><SensitiveValue>{currency}{formatMoney(yearSummary.totalExpense)}</SensitiveValue></p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalExpense)}</p>
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Total income</p>
-                  <p className="mt-2 text-lg font-semibold"><SensitiveValue>{currency}{formatMoney(yearSummary.totalIncome)}</SensitiveValue></p>
+                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalIncome)}</p>
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
                   <p className="text-xs text-muted-foreground">Net balance</p>
@@ -315,7 +315,7 @@ export default function StatisticsPage() {
                     "mt-2 text-lg font-semibold",
                     yearSummary.totalIncome - yearSummary.totalExpense < 0 ? "text-rose-500" : "text-emerald-500"
                   )}>
-                    <SensitiveValue>{currency}{formatMoney(roundMoney(yearSummary.totalIncome - yearSummary.totalExpense))}</SensitiveValue>
+                    {currency}{formatMoney(roundMoney(yearSummary.totalIncome - yearSummary.totalExpense))}
                   </p>
                 </div>
               </div>
@@ -332,16 +332,16 @@ export default function StatisticsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <span className="text-muted-foreground">Expense</span>
-                          <span className="text-right"><SensitiveValue>{currency}{formatMoney(row.expense)}</SensitiveValue></span>
+                          <span className="text-right">{currency}{formatMoney(row.expense)}</span>
                           <span className="text-muted-foreground">Income</span>
-                          <span className="text-right"><SensitiveValue>{currency}{formatMoney(row.income)}</SensitiveValue></span>
+                          <span className="text-right">{currency}{formatMoney(row.income)}</span>
                           <span className="text-muted-foreground">Lend</span>
-                          <span className="text-right"><SensitiveValue>{currency}{formatMoney(row.lend)}</SensitiveValue></span>
+                          <span className="text-right">{currency}{formatMoney(row.lend)}</span>
                           <span className="text-muted-foreground">Borrow</span>
-                          <span className="text-right"><SensitiveValue>{currency}{formatMoney(row.borrow)}</SensitiveValue></span>
+                          <span className="text-right">{currency}{formatMoney(row.borrow)}</span>
                           <span className="text-muted-foreground">Balance</span>
                           <span className={cn("text-right font-semibold", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
-                            <SensitiveValue>{currency}{formatMoney(row.balance)}</SensitiveValue>
+                            {currency}{formatMoney(row.balance)}
                           </span>
                         </div>
                       </div>
@@ -364,12 +364,12 @@ export default function StatisticsPage() {
                             <td className="px-3 py-2 font-medium">
                               {format(monthKeyToDate(row.month), "MMMM")}
                             </td>
-                            <td className="px-3 py-2 text-right"><SensitiveValue>{currency}{formatMoney(row.expense)}</SensitiveValue></td>
-                            <td className="px-3 py-2 text-right"><SensitiveValue>{currency}{formatMoney(row.income)}</SensitiveValue></td>
-                            <td className="px-3 py-2 text-right"><SensitiveValue>{currency}{formatMoney(row.lend)}</SensitiveValue></td>
-                            <td className="px-3 py-2 text-right"><SensitiveValue>{currency}{formatMoney(row.borrow)}</SensitiveValue></td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.expense)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.income)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.lend)}</td>
+                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.borrow)}</td>
                             <td className={cn("px-3 py-2 text-right", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
-                              <SensitiveValue>{currency}{formatMoney(row.balance)}</SensitiveValue>
+                              {currency}{formatMoney(row.balance)}
                             </td>
                           </tr>
                         ))}
@@ -403,20 +403,20 @@ export default function StatisticsPage() {
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
           <p className="text-xs text-muted-foreground">Income (this month)</p>
           <p className="mt-2 text-lg font-semibold">
-            <SensitiveValue>{currency}{formatMoney(monthlyComparison.income.current)}</SensitiveValue>
+            {currency}{formatMoney(monthlyComparison.income.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: <SensitiveValue>{currency}{formatMoney(monthlyComparison.income.prev)}</SensitiveValue></span>
+            <span>Last month: {currency}{formatMoney(monthlyComparison.income.prev)}</span>
             {renderChange(monthlyComparison.income.current, monthlyComparison.income.prev)}
           </div>
         </div>
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
           <p className="text-xs text-muted-foreground">Expense (this month)</p>
           <p className="mt-2 text-lg font-semibold">
-              <SensitiveValue>{currency}{formatMoney(monthlyComparison.expense.current)}</SensitiveValue>
+              {currency}{formatMoney(monthlyComparison.expense.current)}
           </p>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Last month: <SensitiveValue>{currency}{formatMoney(monthlyComparison.expense.prev)}</SensitiveValue></span>
+            <span>Last month: {currency}{formatMoney(monthlyComparison.expense.prev)}</span>
             {renderChange(monthlyComparison.expense.current, monthlyComparison.expense.prev, true)}
           </div>
         </div>
@@ -545,7 +545,7 @@ export default function StatisticsPage() {
               </div>
               <span className="font-medium">{item.name}</span>
             </div>
-            <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(item.value)}</SensitiveValue></span>
+            <span className="font-semibold">{currency}{formatMoney(item.value)}</span>
           </div>
         ))}
       </div>

@@ -279,7 +279,7 @@ export default function AccountsPage() {
                     />
                     {insufficientBalance && (
                       <p className="text-xs text-rose-500">
-                        Not enough balance in {fromAccount?.name || "selected account"}. Available <SensitiveValue>{currency}{formatMoney(fromBalance)}</SensitiveValue>.
+                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{formatMoney(fromBalance)}.
                       </p>
                     )}
                   </div>
@@ -353,7 +353,7 @@ export default function AccountsPage() {
                           <span className="font-medium">
                             {(accountNameMap.get(item.fromAccountId) || "Unknown")} {" -> "} {(accountNameMap.get(item.toAccountId) || "Unknown")}
                           </span>
-                          <span className="font-semibold"><SensitiveValue>{currency}{formatMoney(Number(item.amount))}</SensitiveValue></span>
+                          <span className="font-semibold">{currency}{formatMoney(Number(item.amount))}</span>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground">
                           {format(new Date(item.date), "MMM d, yyyy p")}
