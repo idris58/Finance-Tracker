@@ -133,11 +133,10 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <MonthPicker value={monthDate} onChange={setMonthDate} />
-      </div>
-
-      <BalanceCard totalBalance={totalBalance} badgeText={format(monthDate, "MMM yyyy")} />
+      <BalanceCard
+        totalBalance={totalBalance}
+        action={<MonthPicker value={monthDate} onChange={setMonthDate} align="end" />}
+      />
 
       <div className="flex gap-3">
         {typeTabs.map((tab) => (
