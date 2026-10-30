@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
+import { getLoanProgress } from "@/lib/loans";
 
 interface Props {
   open: boolean;
@@ -73,12 +74,10 @@ export function LoanSettlementModal({ open, onOpenChange, onCloseAnimationEnd, t
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [transaction.settlements]
   );
-  const totalSettled = useMemo(
-    () => roundMoney(settlements.reduce((sum, s) => sum + Number(s.amount), 0)),
-    [settlements]
+  const { totalSettled, remaining, percent } = useMemo(
+    () => getLoanProgress(transaction),
+    [transaction]
   );
-  const remaining = useMemo(() => roundMoney(Math.max(0, totalAmount - totalSettled)), [totalAmount, totalSettled]);
-  const percent = totalAmount > 0 ? (totalSettled / totalAmount) * 100 : 0;
 
   const defaultAccountId = accounts?.some((account) => account.id === transaction.accountId)
     ? transaction.accountId!

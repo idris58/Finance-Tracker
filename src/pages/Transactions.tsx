@@ -12,6 +12,10 @@ import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { EmptyState } from "@/components/EmptyState";
+import { MonthPicker } from "@/components/MonthPicker";
+import { LoanProgress } from "@/components/LoanProgress";
+import { StatusBadge } from "@/components/StatusBadge";
+import { getLoanProgress } from "@/lib/loans";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { useAppState } from "@/context/AppStateContext";
@@ -43,46 +47,10 @@ const monthKeyToDate = (monthKey: string) => {
   return new Date(year, month - 1, 1);
 };
 
-function LoanProgressBar({ tx, currency }: { tx: Transaction; currency: string }) {
-  const totalAmount = Number(tx.amount);
-  const totalSettled = roundMoney((tx.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0));
-  const remaining = roundMoney(Math.max(0, totalAmount - totalSettled));
-  const percent = totalAmount > 0 ? (totalSettled / totalAmount) * 100 : 0;
-
-  const color =
-    tx.loanStatus === "settled"
-      ? "bg-emerald-500"
-      : tx.loanStatus === "partial"
-        ? "bg-amber-400"
-        : "bg-rose-400";
-
-  return (
-    <div className="mt-2 space-y-1">
-      <div
-        className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-valuenow={Math.round(percent)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`${Math.round(percent)}% of loan settled`}
-      >
-        <div
-          className={cn("h-full rounded-full transition-all duration-500", color)}
-          style={{ width: `${Math.min(100, percent)}%` }}
-        />
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>{Math.round(percent)}% paid</span>
-        {remaining > 0 && <span>{currency}{formatMoney(remaining)} left</span>}
-      </div>
-    </div>
-  );
-}
 
 export default function TransactionsPage() {
   const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
-  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
-  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
@@ -93,13 +61,7 @@ export default function TransactionsPage() {
   }, [filter, monthFilter, tagFilter, categoryFilter, loanStatusFilter, searchTerm]);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
-  useEffect(() => {
-    if (monthFilter === "all") {
-      setPickerYear(new Date().getFullYear());
-    } else {
-      setPickerYear(Number(monthFilter.split("-")[0]));
-    }
-  }, [monthFilter]);
+  
 
   const { data: allTransactions, isLoading } = useTransactions();
   const transactions = useMemo(() => {
@@ -284,12 +246,7 @@ export default function TransactionsPage() {
           const accountName = getAccountName(tx.accountId);
           const isLoan = tx.type === "loan";
           const isPositive = tx.type === "income" || (isLoan && tx.loanType === "borrow");
-          const statusColor =
-            tx.loanStatus === "settled"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-              : tx.loanStatus === "partial"
-                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-                : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400";
+          
 
           return (
             <div key={tx.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
@@ -306,9 +263,7 @@ export default function TransactionsPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
                       {isLoan && tx.loanStatus && (
-                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", statusColor)}>
-                          {tx.loanStatus}
-                        </span>
+                        <StatusBadge status={tx.loanStatus} />
                       )}
                       {isLoan && tx.loanType && (
                         <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
@@ -332,7 +287,7 @@ export default function TransactionsPage() {
                         ))}
                       </div>
                     )}
-                    {isLoan && <LoanProgressBar tx={tx} currency={currency} />}
+                    {isLoan && <LoanProgress tx={tx} currency={currency} />}
                   </div>
                 </div>
                 <div className="ml-4 shrink-0 text-right">
@@ -448,74 +403,7 @@ export default function TransactionsPage() {
           </div>
           {/* Month picker */}
           <div className="sm:w-48">
-            <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full rounded-2xl border-border/60 bg-card/70 px-3">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {monthFilter === "all"
-                    ? "All months"
-                    : format(monthKeyToDate(monthFilter), "MMMM yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-4" align="start">
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
-                    onClick={() => setPickerYear((prev) => prev - 1)}
-                    aria-label="Previous year"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <div className="text-sm font-semibold">{pickerYear}</div>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
-                    onClick={() => setPickerYear((prev) => prev + 1)}
-                    aria-label="Next year"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {Array.from({ length: 12 }, (_, idx) => {
-                    const monthLabel = format(new Date(2020, idx, 1), "MMM");
-                    const value = `${pickerYear}-${String(idx + 1).padStart(2, "0")}`;
-                    const isActive = monthFilter === value;
-                    return (
-                      <button
-                        key={monthLabel}
-                        type="button"
-                        className={cn(
-                          "rounded-lg border px-3 py-2 text-sm font-medium transition",
-                          isActive
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border/60 bg-card/70 text-muted-foreground hover:border-primary/40"
-                        )}
-                        onClick={() => {
-                          setMonthFilter(value);
-                          setIsMonthPickerOpen(false);
-                        }}
-                      >
-                        {monthLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setMonthFilter("all");
-                      setIsMonthPickerOpen(false);
-                    }}
-                  >
-                    All months
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <MonthPicker value={monthFilter} onChange={setMonthFilter} allowAll className="w-full rounded-2xl" />
           </div>
         </div>
       </div>

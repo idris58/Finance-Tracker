@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
+import { MonthPicker } from "@/components/MonthPicker";
+import { BalanceCard } from "@/components/BalanceCard";
+import { LoanProgress } from "@/components/LoanProgress";
+import { StatusBadge } from "@/components/StatusBadge";
+import { getLoanProgress } from "@/lib/loans";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
@@ -28,17 +33,14 @@ type TxType = (typeof typeTabs)[number]["id"];
 export default function HomePage() {
   const [activeType, setActiveType] = useState<TxType>("expense");
   const { monthDate, setMonthDate } = useAppState();
-  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
-  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
 
-  useEffect(() => {
-    setPickerYear(monthDate.getFullYear());
-  }, [monthDate]);
+  
 
   const monthKey = format(monthDate, "yyyy-MM");
   const { data: accounts } = useAccounts();
@@ -132,80 +134,10 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="rounded-full border-border/60 bg-card/70 px-4">
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {format(monthDate, "MMMM yyyy")}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-4" align="start">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
-                onClick={() => setPickerYear((prev) => prev - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div className="text-sm font-semibold">{pickerYear}</div>
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
-                onClick={() => setPickerYear((prev) => prev + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {Array.from({ length: 12 }, (_, idx) => {
-                const monthLabel = format(new Date(2020, idx, 1), "MMM");
-                const isActive = monthDate.getFullYear() === pickerYear && monthDate.getMonth() === idx;
-                return (
-                  <button
-                    key={monthLabel}
-                    type="button"
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-sm font-medium transition",
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border/60 bg-card/70 text-muted-foreground hover:border-primary/40"
-                    )}
-                    onClick={() => {
-                      setMonthDate(new Date(pickerYear, idx, 1));
-                      setIsMonthPickerOpen(false);
-                    }}
-                  >
-                    {monthLabel}
-                  </button>
-                );
-              })}
-            </div>
-          </PopoverContent>
-        </Popover>
+        <MonthPicker value={monthDate} onChange={setMonthDate} />
       </div>
 
-      <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.4)]">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Total balance</p>
-            <div className="mt-2 flex items-center gap-3">
-              <h2 className="text-3xl font-semibold tracking-tight">
-                {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
-              </h2>
-              <button
-                onClick={toggleHideBalance}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
-              >
-                {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-            {format(monthDate, "MMM yyyy")}
-          </div>
-        </div>
-      </div>
+      <BalanceCard totalBalance={totalBalance} badgeText={format(monthDate, "MMM yyyy")} />
 
       <div className="flex gap-3">
         {typeTabs.map((tab) => (
@@ -270,10 +202,7 @@ export default function HomePage() {
                 {carriedLoans.map((tx) => {
                   const entry = getCategoryIcon(tx.categoryName);
                   const Icon = entry.icon;
-                  const totalAmount = Number(tx.amount);
-                  const totalSettled = roundMoney((tx.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0));
-                  const remaining = roundMoney(Math.max(0, totalAmount - totalSettled));
-                  const percent = totalAmount > 0 ? (totalSettled / totalAmount) * 100 : 0;
+                  const { totalSettled, remaining, percent } = getLoanProgress(tx);
                   return (
                     <div key={tx.id} className="overflow-hidden rounded-2xl border border-border/60 bg-background/70 transition hover:border-primary/20">
                       <button
@@ -288,41 +217,13 @@ export default function HomePage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{tx.categoryName || "Loan"}</p>
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase border",
-                                  tx.loanStatus === "partial"
-                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                    : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                                )}
-                              >
-                                {tx.loanStatus === "partial" ? "Partial" : "Unsettled"}
-                              </span>
+                              <StatusBadge status={tx.loanStatus} fallbackLabel="Unsettled" />
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(tx.date), "MMM d, yyyy")} · {getAccountName(tx.accountId)}
                             </p>
                             {tx.counterparty && <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>}
-                            <div className="mt-2 space-y-1">
-                              <div
-                                className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
-                                role="progressbar"
-                                aria-valuenow={Math.round(percent)}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                              >
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full transition-all duration-500",
-                                    tx.loanStatus === "partial" ? "bg-amber-400" : "bg-rose-400"
-                                  )}
-                                  style={{ width: `${Math.min(100, percent)}%` }}
-                                />
-                              </div>
-                              <p className="text-[10px] text-muted-foreground">
-                                {Math.round(percent)}% paid · {currency}{formatMoney(remaining)} left
-                              </p>
-                            </div>
+                            <LoanProgress tx={tx} currency={currency} />
                           </div>
                         </div>
                         <p className="ml-3 shrink-0 font-semibold text-foreground">
@@ -385,8 +286,7 @@ export default function HomePage() {
                   {items.map((tx) => {
                     const entry = getCategoryIcon(tx.categoryName);
                     const Icon = entry.icon;
-                    const txSettled = tx.settlements?.reduce((s, st) => s + Number(st.amount), 0) || 0;
-                    const txRemaining = Math.max(0, Number(tx.amount) - txSettled);
+                    const { remaining: txRemaining } = getLoanProgress(tx);
                     const isUnsettledLoan = tx.type === "loan" && tx.loanStatus !== "settled";
 
                     return (
@@ -411,18 +311,7 @@ export default function HomePage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="font-medium truncate">{tx.categoryName || "Uncategorized"}</p>
                               {tx.type === "loan" && (
-                                <span
-                                  className={cn(
-                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase border",
-                                    tx.loanStatus === "settled"
-                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                      : tx.loanStatus === "partial"
-                                        ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                        : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                                  )}
-                                >
-                                  {tx.loanStatus === "settled" ? "Settled" : tx.loanStatus === "partial" ? "Partial" : "Unsettled"}
-                                </span>
+                                <StatusBadge status={tx.loanStatus} fallbackLabel="Unsettled" />
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">

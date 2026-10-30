@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { SensitiveValue } from "@/context/AppStateContext";
 import { EmptyState } from "@/components/EmptyState";
+import { BalanceCard } from "@/components/BalanceCard";
 
 const accountTypes = [
   { value: "Cash", label: "Cash", icon: Wallet },
