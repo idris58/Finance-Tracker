@@ -16,11 +16,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { open, setOpen, openNew, transaction } = useTransactionEditor();
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 md:pb-10 md:pt-8">
+      <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-6 md:pb-[calc(env(safe-area-inset-bottom)+2.5rem)] md:pt-8">
         {children}
       </main>
 
-      <nav className="fixed bottom-3 left-1/2 z-50 w-[94%] max-w-md -translate-x-1/2 rounded-3xl border border-border/60 bg-card/90 px-3 py-3 shadow-[0_18px_50px_-35px_rgba(0,0,0,0.6)] backdrop-blur-md">
+      <nav className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-50 w-[94%] max-w-md -translate-x-1/2 rounded-3xl border border-border/60 bg-card/90 px-3 py-3 shadow-[0_18px_50px_-35px_rgba(0,0,0,0.6)] backdrop-blur-md">
         <div className="grid grid-cols-6 items-center">
           {baseNavItems.slice(0, 2).map((item) => (
             <Link key={item.href} href={item.href}>
