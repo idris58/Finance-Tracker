@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { Collection } from 'dexie';
 import { db, initializeDatabase } from './db';
 import { roundMoney, toMoneyString } from './money';
@@ -387,7 +386,7 @@ export class LocalStorage implements IStorage {
 
       const normalizedSettlement: LoanSettlement = {
         ...settlement,
-        id: (settlement.id && settlement.id.trim().length > 0) ? settlement.id : uuidv4(),
+        id: (settlement.id && settlement.id.trim().length > 0) ? settlement.id : crypto.randomUUID(),
         amount: toMoneyString(settleAmount),
         date: settlement.date instanceof Date ? settlement.date : new Date(settlement.date),
       };
@@ -746,7 +745,7 @@ export class LocalStorage implements IStorage {
               sAccountId = nameToAccountId.get(name) ?? sAccountId;
             }
             return {
-              id: (s.id && s.id.trim().length > 0) ? s.id : uuidv4(),
+              id: (s.id && s.id.trim().length > 0) ? s.id : crypto.randomUUID(),
               amount: String(s.amount ?? '0'),
               accountId: sAccountId,
               date: s.date instanceof Date ? s.date : new Date(s.date),
@@ -760,7 +759,7 @@ export class LocalStorage implements IStorage {
               : nameToAccountId.get(tx.paymentMethod || 'Cash') ?? accountId;
             if (settlementAccountId) {
               remappedSettlements.push({
-                id: uuidv4(),
+                id: crypto.randomUUID(),
                 amount: String(tx.amount),
                 accountId: settlementAccountId,
                 date: tx.settlementDate ? new Date(tx.settlementDate) : new Date(tx.date),

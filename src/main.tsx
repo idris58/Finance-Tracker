@@ -21,12 +21,6 @@ const handleAppInstalled = () => {
 window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 window.addEventListener("appinstalled", handleAppInstalled);
 
-if (typeof navigator !== "undefined" && navigator.storage?.persist) {
-  navigator.storage.persisted().then((isPersisted) => {
-    if (!isPersisted) navigator.storage.persist().catch(() => {});
-  }).catch(() => {});
-}
-
 function DatabaseFailureScreen({ error, onRecovered }: { error: unknown; onRecovered: () => void }) {
   const [isImporting, setIsImporting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);

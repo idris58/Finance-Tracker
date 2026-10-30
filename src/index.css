@@ -97,11 +97,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body antialiased;
+    @apply bg-background text-foreground font-body antialiased min-h-screen relative;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(700px 500px at 10% -10%, hsla(347,83%,70%,0.15) 0, transparent 55%),
       radial-gradient(700px 500px at 110% 10%, hsla(200,90%,70%,0.12) 0, transparent 55%);
-    background-attachment: fixed;
   }
 
   h1, h2, h3, h4, h5, h6 {

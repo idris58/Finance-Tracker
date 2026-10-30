@@ -499,12 +499,11 @@ export function useImportData() {
 }
 
 export function useCloudBackupStatus() {
-  const initial = readCloudBackupState();
-  setCloudAccountHint(initial.email ?? null);
   return useQuery({
     queryKey: ["cloud-backup-status"],
     queryFn: async () => {
       const saved = readCloudBackupState();
+      setCloudAccountHint(saved.email ?? null);
       const tokenIsValid = isCloudDriveConnected();
       return {
         connected: saved.connected && tokenIsValid,
@@ -513,11 +512,16 @@ export function useCloudBackupStatus() {
         email: saved.email ?? null,
       };
     },
-    initialData: {
-      connected: initial.connected && isCloudDriveConnected(),
-      reconnectRequired: initial.connected && !isCloudDriveConnected(),
-      lastBackupAt: initial.lastBackupAt ?? null,
-      email: initial.email ?? null,
+    initialData: () => {
+      const saved = readCloudBackupState();
+      setCloudAccountHint(saved.email ?? null);
+      const tokenIsValid = isCloudDriveConnected();
+      return {
+        connected: saved.connected && tokenIsValid,
+        reconnectRequired: saved.connected && !tokenIsValid,
+        lastBackupAt: saved.lastBackupAt ?? null,
+        email: saved.email ?? null,
+      };
     },
     staleTime: Infinity,
   });

@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
-import { v4 as uuidv4 } from "uuid";
 import {
   CalendarIcon,
   CheckCircle2,
@@ -116,7 +115,7 @@ export function LoanSettlementModal({ open, onOpenChange, onCloseAnimationEnd, t
   const handleSubmit = () => {
     if (!canSubmit || resolvedAccountId === null) return;
     const settlement: LoanSettlement = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       amount: String(settlementAmount),
       accountId: resolvedAccountId,
       date,
