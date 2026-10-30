@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, Zap } from "lucide-react";
+import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, X, Zap } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
 import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
@@ -23,17 +23,24 @@ const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettleme
   amount: z.string()
     .min(1, "Please enter an amount")
     .transform((val) => val === "" ? "0" : val)
-    .refine((val) => {
+  .refine((val) => /^\d+(?:\.\d{1,2})?$/.test(val), "Enter an amount with no more than 2 decimal places")
+  .refine((val) => {
       const num = parseFloat(val);
-      return num > 0;
+    return Number.isFinite(num) && num > 0;
     }, "Amount must be greater than 0"),
   categoryId: z.number().min(1, "Please select a category"),
   accountId: z.number().positive("Please select an account"),
+}).superRefine((values, context) => {
+  if (values.type === "loan" && !values.counterparty?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["counterparty"], message: "Please enter a lender or borrower" });
+  }
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormInput = z.input<typeof formSchema>;
+type FormValues = z.output<typeof formSchema>;
 
 type TxType = "expense" | "income" | "loan";
+const LAST_USED_ACCOUNT_KEY = "financeTrackerLastUsedAccountId";
 
 const typeTabs: { id: TxType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "expense", label: "Expense", icon: TrendingDown },
@@ -73,18 +80,28 @@ export function TransactionModal({
   const { data: transactions } = useTransactions();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
-  const [tagsInput, setTagsInput] = useState("");
-
-  const parseTags = (value: string) => value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0);
+  const [tagDraft, setTagDraft] = useState("");
+  const [rememberedAccountId, setRememberedAccountId] = useState<number | null>(() => {
+    try {
+      if (typeof window === "undefined") return null;
+      const value = Number(localStorage.getItem(LAST_USED_ACCOUNT_KEY));
+      return Number.isInteger(value) && value > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  });
 
   const currency = useCurrency();
-  const lastUsedAccountId = transactions?.find((item) => item.accountId && accounts?.some((account) => account.id === item.accountId))?.accountId;
-  const defaultAccountId = lastUsedAccountId ?? accounts?.[0]?.id;
+  const recentAccountId = transactions?.find((item) => item.accountId && accounts?.some((account) => account.id === item.accountId))?.accountId;
+  const isValidAccount = (id?: number | null) => id != null && !!accounts?.some((account) => account.id === id);
+  const defaultAccountId = [rememberedAccountId, recentAccountId, accounts?.[0]?.id].find((id): id is number => isValidAccount(id));
+  const existingTags = useMemo(() => Array.from(new Set((transactions || []).flatMap((item) => item.tags || []))).sort(), [transactions]);
+  const existingCounterparties = useMemo(
+    () => Array.from(new Set((transactions || []).map((item) => item.counterparty?.trim()).filter((value): value is string => Boolean(value)))).sort(),
+    [transactions]
+  );
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: "",
@@ -117,7 +134,7 @@ export function TransactionModal({
         loanType: transaction.loanType ?? null,
         tags: transaction.tags ?? [],
       });
-      setTagsInput((transaction.tags || []).join(", "));
+      setTagDraft("");
       return;
     }
 
@@ -133,8 +150,33 @@ export function TransactionModal({
       loanType: null,
       tags: [],
     });
-    setTagsInput("");
+    setTagDraft("");
   }, [open, defaultAccountId, form, transaction]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timeout = window.setTimeout(() => document.getElementById("tx-amount")?.focus(), 100);
+    return () => window.clearTimeout(timeout);
+  }, [open]);
+
+  const rememberAccount = (accountId: number) => {
+    setRememberedAccountId(accountId);
+    try { localStorage.setItem(LAST_USED_ACCOUNT_KEY, String(accountId)); } catch { /* Keep the in-session preference. */ }
+  };
+
+  const addTag = (value: string) => {
+    const tag = value.trim().replace(/,$/, "").trim();
+    if (!tag) return;
+    const tags = form.getValues("tags") || [];
+    if (!tags.some((existing) => existing.toLocaleLowerCase() === tag.toLocaleLowerCase())) {
+      form.setValue("tags", [...tags, tag], { shouldDirty: true, shouldValidate: true });
+    }
+    setTagDraft("");
+  };
+
+  const removeTag = (tag: string) => {
+    form.setValue("tags", (form.getValues("tags") || []).filter((item) => item !== tag), { shouldDirty: true, shouldValidate: true });
+  };
 
   const onSubmit = (values: FormValues) => {
     const settledTotal = (transaction?.settlements ?? []).reduce((sum, settlement) => sum + Number(settlement.amount), 0);
@@ -142,18 +184,22 @@ export function TransactionModal({
       form.setError("amount", { message: `Amount cannot be less than the settled total (${formatMoney(settledTotal)}).` });
       return;
     }
-    const tags = parseTags(tagsInput);
+    const tags = values.tags || [];
+    const onSuccess = () => {
+      rememberAccount(values.accountId);
+      onOpenChange(false);
+    };
     if (transaction?.id) {
       updateTransaction(
         { id: transaction.id, data: { ...values, amount: values.amount.toString(), tags } },
-        { onSuccess: () => onOpenChange(false) }
+        { onSuccess }
       );
       return;
     }
 
     createTransaction(
       { ...values, amount: values.amount.toString(), tags },
-      { onSuccess: () => onOpenChange(false) }
+      { onSuccess }
     );
   };
 
@@ -234,8 +280,10 @@ export function TransactionModal({
                       {...field}
                       id="tx-amount"
                       type="number"
+                      step="0.01"
                       placeholder="0.00"
                       inputMode="decimal"
+                      autoFocus
                       className="pl-8 text-xl font-bold tracking-tight"
                     />
                   </div>
@@ -349,7 +397,7 @@ export function TransactionModal({
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant="outline" className="w-full justify-between rounded-xl">
-                            {field.value ? format(field.value, "MMM d, yyyy") : "Pick a date"}
+                            {field.value ? format(field.value instanceof Date ? field.value : new Date(field.value), "MMM d, yyyy") : "Pick a date"}
                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </FormControl>
@@ -357,10 +405,10 @@ export function TransactionModal({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={field.value ? field.value instanceof Date ? field.value : new Date(field.value) : undefined}
                           onSelect={(date) => {
                             if (date) {
-                              const current = field.value ?? new Date();
+                              const current = field.value ? field.value instanceof Date ? field.value : new Date(field.value) : new Date();
                               const selectedDate = new Date(date);
                               selectedDate.setHours(
                                 current.getHours(),
@@ -395,10 +443,23 @@ export function TransactionModal({
                     name="counterparty"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{form.watch("loanType") === "borrow" ? "Lender" : "Borrower"}</FormLabel>
+                        <FormLabel>
+                          {form.watch("loanType") === "borrow" ? "Lender" : "Borrower"} <span className="text-destructive">*</span>
+                        </FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} placeholder="Person or organization" className="rounded-xl" />
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            list="transaction-counterparty-suggestions"
+                            required
+                            placeholder="Person or organization"
+                            className="rounded-xl"
+                          />
                         </FormControl>
+                        <datalist id="transaction-counterparty-suggestions">
+                          {existingCounterparties.map((counterparty) => <option key={counterparty} value={counterparty} />)}
+                        </datalist>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -421,23 +482,50 @@ export function TransactionModal({
             />
 
             {/* Tags */}
-            <FormItem>
-              <FormLabel>Tags</FormLabel>
-              <FormControl>
-                <Input
-                  id="tx-tags"
-                  value={tagsInput}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setTagsInput(next);
-                    form.setValue("tags", parseTags(next));
-                  }}
-                  placeholder="e.g. groceries, family, trip"
-                  className="rounded-xl"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+            <FormField
+              control={form.control}
+              name="tags"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Tags</FormLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {(form.watch("tags") || []).map((tag) => (
+                      <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
+                        {tag}
+                        <button type="button" onClick={() => removeTag(tag)} aria-label={`Remove ${tag} tag`} className="rounded-full p-0.5 hover:bg-background/70">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      id="tx-tag-entry"
+                      list="transaction-tag-suggestions"
+                      value={tagDraft}
+                      onChange={(event) => setTagDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === ",") {
+                          event.preventDefault();
+                          addTag(tagDraft);
+                        }
+                      }}
+                      placeholder="Type a tag and press Enter"
+                      className="rounded-xl"
+                    />
+                    <datalist id="transaction-tag-suggestions">
+                      {existingTags.filter((tag) => !(form.watch("tags") || []).includes(tag)).map((tag) => (
+                        <option key={tag} value={tag} />
+                      ))}
+                    </datalist>
+                    <Button type="button" variant="outline" className="rounded-xl" onClick={() => addTag(tagDraft)} disabled={!tagDraft.trim()}>
+                      Add
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Actions */}
             {isEditMode ? (
