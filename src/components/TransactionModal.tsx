@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, Zap } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
-import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useSettings, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -70,7 +71,6 @@ export function TransactionModal({
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions();
-  const { data: settings } = useSettings();
   const [activeType, setActiveType] = useState<TxType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
@@ -80,7 +80,7 @@ export function TransactionModal({
     .map((tag) => tag.trim())
     .filter((tag) => tag.length > 0);
 
-  const currency = settings?.currencySymbol || "৳";
+  const currency = useCurrency();
   const lastUsedAccountId = transactions?.find((item) => item.accountId && accounts?.some((account) => account.id === item.accountId))?.accountId;
   const defaultAccountId = lastUsedAccountId ?? accounts?.[0]?.id;
 

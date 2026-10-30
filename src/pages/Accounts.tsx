@@ -1,7 +1,8 @@
 ﻿import { useMemo, useState } from "react";
 import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts, useCreateAccount, useDeleteAccount, useSettings, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
+import { useAccounts, useCreateAccount, useDeleteAccount, useTransferBetweenAccounts, useTransfers, useUpdateAccount } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -48,7 +49,6 @@ type TransferForm = {
 export default function AccountsPage() {
   const { data: accounts } = useAccounts();
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
-  const { data: settings } = useSettings();
   const { mutate: createAccount, isPending: isCreating } = useCreateAccount();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
   const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
@@ -72,7 +72,7 @@ export default function AccountsPage() {
     () => roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0),
     [accounts]
   );
-  const currency = settings?.currencySymbol || "$";
+  const currency = useCurrency();
 
   const fromAccount = useMemo(() => (accounts || []).find((acc) => acc.id === transferForm.fromAccountId) || null, [accounts, transferForm.fromAccountId]);
   const fromBalance = fromAccount ? Number(fromAccount.balance || 0) : 0;

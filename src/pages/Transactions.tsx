@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useTransactions } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { EmptyState } from "@/components/EmptyState";
@@ -37,7 +38,7 @@ const monthKeyToDate = (monthKey: string) => {
   return new Date(year, month - 1, 1);
 };
 
-function LoanProgressBar({ tx }: { tx: Transaction }) {
+function LoanProgressBar({ tx, currency }: { tx: Transaction; currency: string }) {
   const totalAmount = Number(tx.amount);
   const totalSettled = roundMoney((tx.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0));
   const remaining = roundMoney(Math.max(0, totalAmount - totalSettled));
@@ -67,7 +68,7 @@ function LoanProgressBar({ tx }: { tx: Transaction }) {
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span>{Math.round(percent)}% paid</span>
-        {remaining > 0 && <span>৳{formatMoney(remaining)} left</span>}
+        {remaining > 0 && <span>{currency}{formatMoney(remaining)} left</span>}
       </div>
     </div>
   );
@@ -97,11 +98,10 @@ export default function TransactionsPage() {
   const { data: allTransactions } = useTransactions();
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
-  const { data: settings } = useSettings();
   const { openEdit, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
-  const currency = settings?.currencySymbol || "৳";
+  const currency = useCurrency();
   const noAccounts = (accounts || []).length === 0;
   const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
 
@@ -385,7 +385,7 @@ export default function TransactionsPage() {
                         ))}
                       </div>
                     )}
-                    {isLoan && <LoanProgressBar tx={tx} />}
+                    {isLoan && <LoanProgressBar tx={tx} currency={currency} />}
                   </div>
                 </div>
                 <div className="ml-4 shrink-0 text-right">

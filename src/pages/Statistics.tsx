@@ -3,7 +3,8 @@ import { format, subMonths } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useLocation } from "wouter";
-import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useTransactions } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
@@ -66,14 +67,13 @@ export default function StatisticsPage() {
 
   const monthKey = format(monthDate, "yyyy-MM");
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
-  const { data: settings } = useSettings();
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions({ month: monthKey });
   const { data: allTransactions } = useTransactions();
   const { openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
-  const currency = settings?.currencySymbol || "$";
+  const currency = useCurrency();
   const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
   const noAccounts = (accounts || []).length === 0;
 

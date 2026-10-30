@@ -12,7 +12,8 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Transaction, LoanSettlement } from "@shared/schema";
-import { useAccounts, useAddLoanSettlement, useDeleteLoanSettlement, useSettings } from "@/hooks/use-finance";
+import { useAccounts, useAddLoanSettlement, useDeleteLoanSettlement } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,11 +60,10 @@ function ProgressBar({ percent, status }: { percent: number; status: string }) {
 
 export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) {
   const { data: accounts } = useAccounts();
-  const { data: settings } = useSettings();
   const { mutate: addSettlement, isPending: isAdding } = useAddLoanSettlement();
   const { mutate: deleteSettlement, isPending: isDeleting } = useDeleteLoanSettlement();
 
-  const currency = settings?.currencySymbol || "৳";
+  const currency = useCurrency();
   const totalAmount = Number(transaction.amount);
   const settlements = useMemo(
     () =>

@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useAccounts, useSettings, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useTransactions } from "@/hooks/use-finance";
+import { useCurrency } from "@/hooks/use-currency";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
@@ -36,7 +37,6 @@ export default function HomePage() {
   }, [monthDate]);
 
   const monthKey = format(monthDate, "yyyy-MM");
-  const { data: settings } = useSettings();
   const { data: accounts } = useAccounts();
   const { data: transactions, isLoading } = useTransactions({ month: monthKey });
   const { data: allTransactions } = useTransactions();
@@ -44,7 +44,7 @@ export default function HomePage() {
   const { openEdit, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
-  const currency = settings?.currencySymbol || "$";
+  const currency = useCurrency();
   const totalBalance = roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0);
   const noAccounts = (accounts || []).length === 0;
   const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
