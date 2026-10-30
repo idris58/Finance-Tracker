@@ -358,7 +358,17 @@ export function TransactionModal({
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => {
-                            field.onChange(date);
+                            if (date) {
+                              const current = field.value ?? new Date();
+                              const selectedDate = new Date(date);
+                              selectedDate.setHours(
+                                current.getHours(),
+                                current.getMinutes(),
+                                current.getSeconds(),
+                                current.getMilliseconds()
+                              );
+                              field.onChange(selectedDate);
+                            }
                             setIsDateOpen(false);
                           }}
                           disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
