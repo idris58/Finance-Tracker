@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { Collection } from 'dexie';
 import { db, initializeDatabase } from './db';
 import { roundMoney, toMoneyString } from './money';
 import type { Settings, Category, Transaction, Account, Transfer, ImportSnapshot, LoanSettlement } from '@shared/schema';
@@ -119,28 +120,36 @@ export class LocalStorage implements IStorage {
   }
 
   async getTransactions(month?: string, categoryId?: number, limit?: number): Promise<Transaction[]> {
-    let query = db.transactions.orderBy('date').reverse();
+    let collection: Collection<Transaction, number>;
 
     if (month) {
       const [year, monthNumber] = month.split('-').map(Number);
       const startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0, 0);
       const endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59, 999);
 
-      query = query.filter((tx) => {
-        const txDate = new Date(tx.date);
-        const matchesMonth = txDate >= startOfMonth && txDate <= endOfMonth;
-        const matchesCategory = categoryId === undefined || tx.categoryId === categoryId;
-        return matchesMonth && matchesCategory;
-      });
+      collection = db.transactions
+        .where('date')
+        .between(startOfMonth, endOfMonth, true, true)
+        .reverse();
+
+      if (categoryId !== undefined) {
+        collection = collection.filter((tx: Transaction) => tx.categoryId === categoryId);
+      }
     } else if (categoryId !== undefined) {
-      query = query.filter((tx) => tx.categoryId === categoryId);
+      collection = db.transactions.orderBy('date').reverse().filter((tx: Transaction) => tx.categoryId === categoryId);
+    } else {
+      collection = db.transactions.orderBy('date').reverse();
     }
 
-    const transactions = await query.toArray();
+    if (limit) {
+      collection = collection.limit(limit);
+    }
+
+    const transactions = await collection.toArray();
 
     const categories = await db.categories.toArray();
     const categoryById = new Map(categories.filter((category) => category.id !== undefined).map((category) => [category.id!, category]));
-    const transactionsWithDates = transactions.map((tx) => ({
+    const transactionsWithDates = transactions.map((tx: Transaction) => ({
       ...tx,
       categoryName: tx.categoryId != null ? categoryById.get(tx.categoryId)?.name ?? null : null,
       loanType: tx.type === 'loan' && tx.categoryId != null
@@ -148,7 +157,7 @@ export class LocalStorage implements IStorage {
         : null,
       date: tx.date instanceof Date ? tx.date : new Date(tx.date),
       settlements: Array.isArray(tx.settlements)
-        ? tx.settlements.map((s) => ({
+        ? tx.settlements.map((s: LoanSettlement) => ({
             ...s,
             date: s.date instanceof Date ? s.date : new Date(s.date),
           }))

@@ -71,8 +71,13 @@ export default function StatisticsPage() {
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
-  const { data: transactions } = useTransactions({ month: monthKey });
-  const { data: allTransactions } = useTransactions();
+  const { data: allTransactions, isLoading } = useTransactions();
+  const transactions = useMemo(() => {
+    return (allTransactions || []).filter((tx) => {
+      const d = tx.date instanceof Date ? tx.date : new Date(tx.date);
+      return format(d, "yyyy-MM") === monthKey;
+    });
+  }, [allTransactions, monthKey]);
   const { openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 

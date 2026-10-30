@@ -42,8 +42,13 @@ export default function HomePage() {
 
   const monthKey = format(monthDate, "yyyy-MM");
   const { data: accounts } = useAccounts();
-  const { data: transactions, isLoading } = useTransactions({ month: monthKey });
-  const { data: allTransactions } = useTransactions();
+  const { data: allTransactions, isLoading } = useTransactions();
+  const transactions = useMemo(() => {
+    return (allTransactions || []).filter((tx) => {
+      const d = tx.date instanceof Date ? tx.date : new Date(tx.date);
+      return format(d, "yyyy-MM") === monthKey;
+    });
+  }, [allTransactions, monthKey]);
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { openEdit, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();

@@ -94,10 +94,14 @@ export default function TransactionsPage() {
     }
   }, [monthFilter]);
 
-  const { data: transactions, isLoading } = useTransactions({
-    month: monthFilter === "all" ? undefined : monthFilter,
-  });
-  const { data: allTransactions } = useTransactions();
+  const { data: allTransactions, isLoading } = useTransactions();
+  const transactions = useMemo(() => {
+    if (monthFilter === "all") return allTransactions || [];
+    return (allTransactions || []).filter((tx) => {
+      const d = tx.date instanceof Date ? tx.date : new Date(tx.date);
+      return format(d, "yyyy-MM") === monthFilter;
+    });
+  }, [allTransactions, monthFilter]);
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
