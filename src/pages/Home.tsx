@@ -32,7 +32,8 @@ export default function HomePage() {
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
-  useHistoryBackDismiss(settlementTxId !== null, () => setSettlementTxId(null));
+  const [settlementOpen, setSettlementOpen] = useState(false);
+  useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
 
   useEffect(() => {
@@ -327,7 +328,7 @@ export default function HomePage() {
                       <div className="border-t border-border/40 px-4 pb-3 pt-2">
                         <button
                           type="button"
-                          onClick={() => setSettlementTxId(tx.id ?? null)}
+                          onClick={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
                           className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
                         >
                           <Zap className="h-3 w-3" />
@@ -445,6 +446,7 @@ export default function HomePage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSettlementTxId(tx.id ?? null);
+                                setSettlementOpen(true);
                               }}
                               className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
                               title="Settle or record partial payment"
@@ -467,8 +469,9 @@ export default function HomePage() {
 
       {settlementTxId !== null && settlementTx && (
         <LoanSettlementModal
-          open={settlementTxId !== null}
-          onOpenChange={(o) => { if (!o) setSettlementTxId(null); }}
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
+          onCloseAnimationEnd={() => setSettlementTxId((current) => current === settlementTx.id ? null : current)}
           transaction={settlementTx}
         />
       )}

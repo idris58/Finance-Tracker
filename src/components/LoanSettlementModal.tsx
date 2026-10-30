@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -28,10 +28,11 @@ import { formatMoney, roundMoney } from "@/lib/money";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAnimationEnd?: () => void;
   transaction: Transaction;
 }
 
-type QuickAmount = "remaining" | "half" | "quarter" | "custom";
+type QuickAmount = "remaining" | "half" | "custom";
 
 function ProgressBar({ percent, status }: { percent: number; status: string }) {
   const color =
@@ -58,7 +59,7 @@ function ProgressBar({ percent, status }: { percent: number; status: string }) {
   );
 }
 
-export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) {
+export function LoanSettlementModal({ open, onOpenChange, onCloseAnimationEnd, transaction }: Props) {
   const { data: accounts } = useAccounts();
   const { mutate: addSettlement, isPending: isAdding } = useAddLoanSettlement();
   const { mutate: deleteSettlement, isPending: isDeleting } = useDeleteLoanSettlement();
@@ -89,13 +90,16 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
   const [note, setNote] = useState("");
   const [isDateOpen, setIsDateOpen] = useState(false);
 
+  useEffect(() => {
+    if (open) setAccountId(null);
+  }, [open, transaction.id]);
+
   const resolvedAccountId = accountId ?? defaultAccountId;
   const customAmountValue = customAmount.trim() === "" ? 0 : Number(customAmount);
 
   const settlementAmount = useMemo(() => {
     if (quickMode === "remaining") return remaining;
     if (quickMode === "half") return roundMoney(remaining / 2);
-    if (quickMode === "quarter") return roundMoney(remaining / 4);
     return Number.isFinite(customAmountValue) ? customAmountValue : 0;
   }, [quickMode, remaining, customAmountValue]);
 
@@ -151,7 +155,7 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
         : "bg-rose-500/10 border-rose-500/20 text-rose-600";
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} onAnimationEnd={(isOpen) => { if (!isOpen) onCloseAnimationEnd?.(); }}>
       <DrawerContent className="flex h-[92dvh] flex-col rounded-t-3xl border border-border/60 bg-background">
         <DrawerHeader className="border-b border-border/40 px-5 pb-4 text-left">
           <div className="flex items-center gap-3">
@@ -222,12 +226,11 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Record a Payment
                 </Label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {(
                     [
                       { key: "remaining", label: "Full", sub: remaining },
-                      { key: "half", label: "50%", sub: roundMoney(remaining / 2) },
-                      { key: "quarter", label: "25%", sub: roundMoney(remaining / 4) },
+                      { key: "half", label: "50% of remaining", sub: roundMoney(remaining / 2) },
                       { key: "custom", label: "Custom", sub: null },
                     ] as { key: QuickAmount; label: string; sub: number | null }[]
                   ).map((opt) => (
@@ -265,7 +268,9 @@ export function LoanSettlementModal({ open, onOpenChange, transaction }: Props) 
                     {customAmount.trim() !== "" &&
                       (!Number.isFinite(customAmountValue) || customAmountValue <= 0 || customAmountValue > remaining + 0.001) && (
                         <p className="mt-1 text-xs text-destructive">
-                          Enter an amount greater than zero and no more than {currency}{formatMoney(remaining)}.
+                          {customAmountValue > remaining + 0.001
+                            ? `Exceeds remaining ${currency}${formatMoney(remaining)}`
+                            : "Enter an amount greater than zero."}
                         </p>
                       )}
                   </div>

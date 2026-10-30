@@ -82,8 +82,9 @@ export default function TransactionsPage() {
   const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
+  const [settlementOpen, setSettlementOpen] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
-  useHistoryBackDismiss(settlementTxId !== null, () => setSettlementTxId(null));
+  useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
   useEffect(() => {
     if (monthFilter === "all") {
@@ -325,7 +326,7 @@ export default function TransactionsPage() {
                 <div className="border-t border-border/40 px-4 pb-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setSettlementTxId(tx.id ?? null)}
+                    onClick={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
                     className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
                     aria-label={`Record a payment for loan from ${tx.counterparty ?? "counterparty"}`}
                   >
@@ -530,8 +531,9 @@ export default function TransactionsPage() {
       {/* Loan Settlement Modal */}
       {settlementTxId !== null && settlementTx && (
         <LoanSettlementModal
-          open={settlementTxId !== null}
-          onOpenChange={(o) => { if (!o) setSettlementTxId(null); }}
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
+          onCloseAnimationEnd={() => setSettlementTxId((current) => current === settlementTx.id ? null : current)}
           transaction={settlementTx}
         />
       )}
