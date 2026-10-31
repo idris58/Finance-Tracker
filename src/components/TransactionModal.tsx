@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -92,6 +92,44 @@ export function TransactionModal({
       return null;
     }
   });
+
+  const scrollRef = useRef<HTMLFormElement>(null);
+
+  // Fix: Mobile keyboard dismiss causes blank/white lower area.
+  // When the virtual keyboard opens the browser shrinks the visual viewport.
+  // When the keyboard closes (e.g. by tapping a category) the viewport grows
+  // back, but the drawer scroll container can get stuck -- its layout doesn't
+  // recalculate, leaving the bottom content invisible (white).
+  // We listen to visualViewport resize and force a repaint of the scroll area.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      // Force layout recalculation on the scrollable form container
+      const el = scrollRef.current;
+      if (el) {
+        // Force a synchronous reflow by reading + writing a layout prop
+        void el.offsetHeight;
+        el.style.overflow = "hidden";
+        requestAnimationFrame(() => {
+          el.style.overflow = "";
+        });
+      }
+    };
+
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, [open]);
+
+  // Helper: blur any focused input so the keyboard closes cleanly
+  const blurActiveInput = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+      active.blur();
+    }
+  }, []);
 
   const currency = useCurrency();
   const recentAccountId = transactions?.find((item) => item.accountId && accounts?.some((account) => account.id === item.accountId))?.accountId;
@@ -212,6 +250,7 @@ export function TransactionModal({
   }, [categories, activeType]);
 
   const handleTypeChange = (type: TxType) => {
+    blurActiveInput();
     setActiveType(type);
     form.setValue("type", type);
     if (type !== "loan") {
@@ -239,6 +278,7 @@ export function TransactionModal({
 
         <Form {...form}>
           <form
+            ref={scrollRef}
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1 space-y-4 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
@@ -319,6 +359,7 @@ export function TransactionModal({
                         role="radio"
                         aria-checked={field.value === cat.id}
                         onClick={() => {
+                          blurActiveInput();
                           field.onChange(cat.id);
                           if (activeType === "loan") {
                             form.setValue("loanType", cat.loanType ?? null);
