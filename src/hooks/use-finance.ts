@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction, type ToastActionElement } from "@/components/ui/toast";
 import { storage } from "@/lib/storage";
-import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, isCloudDriveConnected, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
+import { connectCloudDrive, disconnectCloudDrive, downloadLatestBackupFromCloud, downloadBackupById, ensureCloudDriveToken, listAllCloudBackups, preloadCloudDriveAuth, setCloudAccountHint, uploadBackupToCloud, type CloudBackupFileMeta } from "@/lib/cloud-drive";
 import { 
   CURRENT_SCHEMA_VERSION,
   backupFileSchema,
@@ -504,10 +504,8 @@ export function useCloudBackupStatus() {
     queryFn: async () => {
       const saved = readCloudBackupState();
       setCloudAccountHint(saved.email ?? null);
-      const tokenIsValid = isCloudDriveConnected();
       return {
-        connected: saved.connected && tokenIsValid,
-        reconnectRequired: saved.connected && !tokenIsValid,
+        connected: saved.connected,
         lastBackupAt: saved.lastBackupAt ?? null,
         email: saved.email ?? null,
       };
@@ -515,16 +513,23 @@ export function useCloudBackupStatus() {
     initialData: () => {
       const saved = readCloudBackupState();
       setCloudAccountHint(saved.email ?? null);
-      const tokenIsValid = isCloudDriveConnected();
       return {
-        connected: saved.connected && tokenIsValid,
-        reconnectRequired: saved.connected && !tokenIsValid,
+        connected: saved.connected,
         lastBackupAt: saved.lastBackupAt ?? null,
         email: saved.email ?? null,
       };
     },
     staleTime: Infinity,
   });
+}
+
+/** Must be called directly from a click handler so Google can open its auth UI. */
+export function useEnsureCloudDriveToken() {
+  const { toast } = useToast();
+  return useCallback(() => ensureCloudDriveToken().catch((error: any) => {
+    applyCloudConnectError({ error, toast });
+    return null;
+  }), [toast]);
 }
 
 export function usePreloadCloudBackupAuth() {

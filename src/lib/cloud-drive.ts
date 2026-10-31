@@ -16,7 +16,7 @@ type GooglePromptError = {
 };
 
 type GoogleTokenClient = {
-  requestAccessToken: (options?: { prompt?: string }) => void;
+  requestAccessToken: (options?: { prompt?: string; hint?: string }) => void;
 };
 
 type GoogleOauth2 = {
@@ -59,7 +59,7 @@ const getClientId = () => import.meta.env.VITE_GOOGLE_CLIENT_ID as string | unde
 
 const mapPromptError = (error?: GooglePromptError) => {
   if (error?.type === "popup_failed_to_open") {
-    return "Google sign-in popup was blocked. Allow popups for this site and try again.";
+    return "Google sign-in popup was blocked. Allow popups for this site and allowlist it in AdGuard or other content blockers, then try again.";
   }
   if (error?.type === "popup_closed") {
     return "Google sign-in was closed before it finished.";
@@ -174,8 +174,17 @@ const requestAccessTokenImmediate = (prompt: "consent" | "") => {
     pendingResolve = resolve;
     pendingReject = reject;
     // This MUST call window.open synchronously from the user gesture
-    tokenClient!.requestAccessToken({ prompt });
+    tokenClient!.requestAccessToken({ prompt, hint: accountHint || undefined });
   });
+};
+
+/**
+ * Obtain a short-lived token from a user-initiated action. Tokens intentionally
+ * stay in memory only; Google access tokens are bearer credentials.
+ */
+export const ensureCloudDriveToken = () => {
+  if (accessToken && Date.now() < tokenExpiresAt) return Promise.resolve(accessToken);
+  return requestAccessTokenImmediate("");
 };
 
 const requestAccessToken = async (prompt: "consent" | "" = "consent") => {

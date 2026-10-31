@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCloudBackupNow, useCloudBackupStatus, useCloudBackupList, useCloudDisconnect, useCloudRestoreLatest, useCloudRestoreByFile, useDirectCloudConnect, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
+import { useCloudBackupNow, useCloudBackupStatus, useCloudBackupList, useCloudDisconnect, useCloudRestoreLatest, useCloudRestoreByFile, useDirectCloudConnect, useEnsureCloudDriveToken, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const cloudRestoreLatest = useCloudRestoreLatest();
   const preloadCloudBackupAuth = usePreloadCloudBackupAuth();
   const directCloudConnect = useDirectCloudConnect();
+  const ensureCloudDriveToken = useEnsureCloudDriveToken();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
   const { isPersisted, isSupported: isStorageSupported, isRequesting: isRequestingStorage, requestPersist } = useStoragePersistence();
@@ -161,7 +162,7 @@ export default function SettingsPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm">
                   <p className="font-medium">
-                    Status: {cloudStatus.data?.connected ? "Connected" : cloudStatus.data?.reconnectRequired ? "Reconnect required" : "Not connected"}
+                    Status: {cloudStatus.data?.connected ? "Connected" : "Not connected"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {cloudStatus.data?.lastBackupAt
@@ -171,6 +172,11 @@ export default function SettingsPage() {
                   {cloudStatus.data?.connected && cloudStatus.data?.email && (
                     <p className="text-xs text-muted-foreground">
                       Account: {cloudStatus.data.email}
+                    </p>
+                  )}
+                  {cloudStatus.data?.connected && (
+                    <p className="text-xs text-muted-foreground">
+                      Google may briefly ask you to refresh access when you back up or restore.
                     </p>
                   )}
                 </div>
@@ -197,7 +203,11 @@ export default function SettingsPage() {
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Button
                   className="rounded-2xl"
-                  onClick={() => cloudBackupNow.mutate()}
+                  onClick={() => {
+                    void ensureCloudDriveToken().then((token) => {
+                      if (token) cloudBackupNow.mutate();
+                    });
+                  }}
                   disabled={!cloudStatus.data?.connected || cloudBackupNow.isPending}
                 >
                   <Cloud className="mr-2 h-4 w-4" /> Backup now
@@ -207,9 +217,12 @@ export default function SettingsPage() {
                   className="rounded-2xl"
                   disabled={!cloudStatus.data?.connected || cloudBackupList.isFetching}
                   onClick={() => {
-                    setPickerSelectedId(null);
-                    setShowRestorePicker(true);
-                    cloudBackupList.refetch();
+                    void ensureCloudDriveToken().then((token) => {
+                      if (!token) return;
+                      setPickerSelectedId(null);
+                      setShowRestorePicker(true);
+                      cloudBackupList.refetch();
+                    });
                   }}
                 >
                   <History className="mr-2 h-4 w-4" /> Restore data
@@ -527,8 +540,11 @@ export default function SettingsPage() {
                     onClick={() => {
                       const file = cloudBackupList.data?.find((f) => f.id === pickerSelectedId);
                       if (file) {
-                        cloudRestoreByFile.mutate(file, {
-                          onSuccess: () => setShowRestorePicker(false),
+                        void ensureCloudDriveToken().then((token) => {
+                          if (!token) return;
+                          cloudRestoreByFile.mutate(file, {
+                            onSuccess: () => setShowRestorePicker(false),
+                          });
                         });
                       }
                     }}
