@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TransactionModal } from "./TransactionModal";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
+import { PwaInstallButton } from "@/components/PwaInstallButton";
 
 const baseNavItems = [
   { icon: Home, label: "Home", href: "/" },
@@ -28,22 +29,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-semibold tracking-tight text-base">Finance Tracker</span>
           </Link>
 
-          <Link href="/settings">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-9 w-9 rounded-full transition-colors",
-                location === "/settings"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-          </Link>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <PwaInstallButton />
+            <Link href="/settings">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-9 w-9 rounded-full transition-colors",
+                  location === "/settings"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 

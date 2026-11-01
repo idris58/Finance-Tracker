@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { CheckCircle2, Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Smartphone, Sun, Unlink2, Upload, X } from "lucide-react";
+import { Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Sun, Unlink2, Upload, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCloudBackupNow, useCloudBackupStatus, useCloudBackupList, useCloudDisconnect, useCloudRestoreLatest, useCloudRestoreByFile, useDirectCloudConnect, useEnsureCloudDriveToken, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePwaInstall } from "@/lib/pwa";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,19 +32,12 @@ export default function SettingsPage() {
   const directCloudConnect = useDirectCloudConnect();
   const ensureCloudDriveToken = useEnsureCloudDriveToken();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const { isInstalled, isKnownInstalled, isSupported, isIos, canInstall, promptInstall } = usePwaInstall();
   const { isPersisted, isSupported: isStorageSupported, isRequesting: isRequestingStorage, requestPersist } = useStoragePersistence();
-  const [installFeedback, setInstallFeedback] = useState<"accepted" | "dismissed" | "unavailable" | null>(null);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
   const [showRestorePicker, setShowRestorePicker] = useState(false);
   const [pickerSelectedId, setPickerSelectedId] = useState<string | null>(null);
   const cloudBackupList = useCloudBackupList();
   const cloudRestoreByFile = useCloudRestoreByFile();
-
-  const handleInstall = async () => {
-    const outcome = await promptInstall();
-    setInstallFeedback(outcome);
-  };
 
   const handleCurrencyChange = (value: string) => {
     updateSettings.mutate({ currencySymbol: value });
@@ -363,67 +355,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">App</h2>
-        <p className="text-sm text-muted-foreground">
-          Install the app for faster access and offline usage.
-        </p>
-        <div className="space-y-3 rounded-2xl border border-border/60 bg-card/70 p-4">
-          {isKnownInstalled ? (
-            <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
-              <div>
-                <p className="font-medium text-foreground">App already installed</p>
-                <p className="text-muted-foreground">
-                  {isInstalled
-                    ? "Open it from your home screen for the best app-like experience."
-                    : "This device already has the installed app. Open it from your home screen or app list."}
-                </p>
-              </div>
-            </div>
-          ) : isIos ? (
-            <div className="space-y-3 rounded-2xl border border-border/60 bg-background/50 p-4 text-sm">
-              <div className="flex items-start gap-3">
-                <Smartphone className="mt-0.5 h-4 w-4 text-primary" />
-                <div>
-                  <p className="font-medium text-foreground">Install on iPhone or iPad</p>
-                  <p className="text-muted-foreground">Safari does not show a direct install prompt for PWAs.</p>
-                </div>
-              </div>
-              <p className="text-muted-foreground">
-                Open this site in Safari, tap the Share button, then choose <span className="font-medium text-foreground">Add to Home Screen</span>.
-              </p>
-            </div>
-          ) : canInstall ? (
-            <>
-              <Button onClick={handleInstall} className="w-full rounded-2xl">
-                <Smartphone className="mr-2 h-4 w-4" />
-                Install app
-              </Button>
-              {installFeedback === "accepted" && (
-                <p className="text-sm text-emerald-500">Install prompt accepted.</p>
-              )}
-              {installFeedback === "dismissed" && (
-                <p className="text-sm text-muted-foreground">Install prompt dismissed. You can try again later.</p>
-              )}
-            </>
-          ) : (
-            <div className="space-y-2 rounded-2xl border border-border/60 bg-background/50 p-4 text-sm">
-              <p className="font-medium text-foreground">
-                {isSupported ? "Install prompt not available in this tab" : "Install is not supported here"}
-              </p>
-              <p className="text-muted-foreground">
-                {isSupported
-                  ? "If the app is already installed, open it from your home screen or app list. Otherwise, keep using this site until the browser offers install."
-                  : "Try Chrome or Edge on Android or desktop to get the install prompt."}
-              </p>
-              {installFeedback === "unavailable" && (
-                <p className="text-sm text-muted-foreground">No browser install prompt is available right now.</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
 
     {/* ── Restore version picker modal ── */}

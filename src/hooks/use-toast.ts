@@ -8,11 +8,12 @@ import type {
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
 
-type ToasterToast = ToastProps & {
+type ToasterToast = Omit<ToastProps, "content"> & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  content?: React.ReactNode
 }
 
 const actionTypes = {
@@ -76,7 +77,7 @@ export const reducer = (state: State, action: Action): State => {
     case "ADD_TOAST":
       return {
         ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+        toasts: [action.toast, ...state.toasts.filter((toast) => toast.id !== action.toast.id)].slice(0, TOAST_LIMIT),
       }
 
     case "UPDATE_TOAST":
@@ -137,10 +138,10 @@ function dispatch(action: Action) {
   })
 }
 
-type Toast = Omit<ToasterToast, "id">
+type Toast = Omit<ToasterToast, "id"> & { id?: string }
 
 function toast({ ...props }: Toast) {
-  const id = genId()
+  const id = props.id ?? genId()
 
   const update = (props: ToasterToast) =>
     dispatch({
