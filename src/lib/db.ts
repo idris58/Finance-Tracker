@@ -313,25 +313,41 @@ export async function initializeDatabase() {
     });
   }
 
-  const categoriesCount = await db.categories.count();
-  if (categoriesCount === 0) {
-    await db.categories.bulkAdd(defaultCategories);
-  } else {
-    const oldLoan = await db.categories.where('name').equals('Loan').first();
-    if (oldLoan) {
-      await db.categories.update(oldLoan.id!, { name: 'Lend', type: 'loan' });
+  await db.transaction('rw', db.categories, async () => {
+    const categoriesCount = await db.categories.count();
+    if (categoriesCount === 0) {
+      await db.categories.bulkAdd(defaultCategories);
+      return;
     }
 
-    for (const cat of defaultCategories) {
-      const existing = (await db.categories.where('name').equals(cat.name).first()) as Category | undefined;
+    // The full reconciliation only runs for an incomplete default category set.
+    if (categoriesCount >= defaultCategories.length) return;
+
+    const existingCategories = await db.categories.toArray();
+    const oldLoan = existingCategories.find((category) => category.name === 'Loan');
+    const lend = existingCategories.find((category) => category.name === 'Lend');
+    if (oldLoan && !lend) {
+      await db.categories.update(oldLoan.id!, { name: 'Lend', type: 'loan', loanType: 'lend' });
+      oldLoan.name = 'Lend';
+      oldLoan.type = 'loan';
+      oldLoan.loanType = 'lend';
+    }
+
+    const categoriesByName = new Map<string, Category>();
+    for (const category of existingCategories) {
+      if (!categoriesByName.has(category.name)) categoriesByName.set(category.name, category);
+    }
+    const missing: Omit<Category, 'id'>[] = [];
+    for (const category of defaultCategories) {
+      const existing = categoriesByName.get(category.name);
       if (!existing) {
-        await db.categories.add(cat);
-      } else if (existing.type !== cat.type || existing.loanType !== (cat.loanType ?? null)) {
-        await db.categories.update(existing.id!, { type: cat.type, loanType: cat.loanType ?? null });
+        missing.push(category);
+      } else if (existing.type !== category.type || existing.loanType !== (category.loanType ?? null)) {
+        await db.categories.update(existing.id!, { type: category.type, loanType: category.loanType ?? null });
       }
     }
-
-  }
+    if (missing.length > 0) await db.categories.bulkAdd(missing);
+  });
 
   const accountsCount = await db.accounts.count();
   if (accountsCount === 0) {
