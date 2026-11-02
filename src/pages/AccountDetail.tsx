@@ -17,7 +17,7 @@ import {
   useAccounts,
   useCategories,
   useDeleteAccount,
-  useTransactions,
+  useTransactionsByAccount,
   useTransfers,
   useUpdateAccount,
 } from "@/hooks/use-finance";
@@ -80,7 +80,7 @@ export default function AccountDetailPage() {
   const accountId = params?.id ? Number(params.id) : null;
 
   const { data: accounts } = useAccounts();
-  const { data: allTransactions } = useTransactions();
+  const { data: accountTransactions = [] } = useTransactionsByAccount(accountId);
   const { data: allTransfers } = useTransfers();
   const { data: categories } = useCategories();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
@@ -120,13 +120,6 @@ export default function AccountDetailPage() {
     });
     return map;
   }, [categories]);
-
-  // Transactions for this account
-  const accountTransactions = useMemo(
-    () =>
-      (allTransactions || []).filter((tx) => tx.accountId === accountId),
-    [allTransactions, accountId]
-  );
 
   // Transfers involving this account
   const accountTransfers = useMemo(

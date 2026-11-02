@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAccounts, useCategories, useTransactions, useTransfers } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useTransactions, useTransactionsByTag, useTransfers } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
@@ -50,6 +50,7 @@ export default function TransactionsPage() {
   
 
   const { data: allTransactions, isLoading } = useTransactions();
+  const { data: transactionsWithTag, isLoading: isLoadingTaggedTransactions } = useTransactionsByTag(tagFilter === "all" ? null : tagFilter);
   const { data: allTransfers, isLoading: isLoadingTransfers } = useTransfers();
   const transactions = useMemo(() => {
     if (monthFilter === "all") return allTransactions || [];
@@ -62,6 +63,13 @@ export default function TransactionsPage() {
     if (monthFilter === "all") return allTransfers || [];
     return (allTransfers || []).filter((item) => format(new Date(item.date), "yyyy-MM") === monthFilter);
   }, [allTransfers, monthFilter]);
+  const transactionsForCurrentTag = useMemo(() => {
+    if (tagFilter === "all") return transactions;
+    return (transactionsWithTag || []).filter((tx) => {
+      if (monthFilter === "all") return true;
+      return format(new Date(tx.date), "yyyy-MM") === monthFilter;
+    });
+  }, [monthFilter, tagFilter, transactions, transactionsWithTag]);
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
@@ -126,7 +134,7 @@ export default function TransactionsPage() {
     }
   }, [categories, categoryFilter, setCategoryFilter]);
 
-  const filteredTx = (transactions || []).filter((tx) => {
+  const filteredTx = transactionsForCurrentTag.filter((tx) => {
     const matchesSearch =
       tx.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -252,8 +260,8 @@ export default function TransactionsPage() {
 
   const transactionResults = (
       <div className="space-y-4">
-        {(isLoading || isLoadingTransfers) && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {!isLoading && !isLoadingTransfers && sortedFilteredTx.length === 0 && <EmptyState {...emptyState} />}
+        {(isLoading || isLoadingTransfers || isLoadingTaggedTransactions) && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {!isLoading && !isLoadingTransfers && !isLoadingTaggedTransactions && sortedFilteredTx.length === 0 && <EmptyState {...emptyState} />}
         {sortedFilteredTx.length > 0 && (
           <div className={cn("grid grid-cols-2 gap-2", filter === "transfer" ? "sm:grid-cols-2" : "sm:grid-cols-5")}>
             <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Records</p><p className="mt-1 font-semibold">{sortedFilteredTx.length}</p></div>

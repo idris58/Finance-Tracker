@@ -298,6 +298,16 @@ class FinanceDatabase extends Dexie {
         });
       }
     });
+
+    // Index transaction history by account/date and allow direct multiEntry tag lookups.
+    this.version(16).stores({
+      settings: '++id',
+      categories: '++id, name, type',
+      transactions: '++id, date, categoryId, type, accountId, [accountId+date], *tags',
+      accounts: '++id, &name',
+      transfers: '++id, date, fromAccountId, toAccountId',
+      importSnapshots: '++id, createdAt',
+    });
   }
 }
 

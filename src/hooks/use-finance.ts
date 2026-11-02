@@ -136,6 +136,28 @@ export function useTransactions(filters?: { month?: string, categoryId?: string,
   });
 }
 
+export function useTransactionsByAccount(accountId: number | null) {
+  return useQuery({
+    queryKey: ['transactions', 'account', accountId],
+    queryFn: async () => {
+      if (accountId === null) return [];
+      return await storage.getTransactionsByAccount(accountId);
+    },
+    enabled: accountId !== null,
+  });
+}
+
+export function useTransactionsByTag(tag: string | null) {
+  return useQuery({
+    queryKey: ['transactions', 'tag', tag],
+    queryFn: async () => {
+      if (tag === null) return [];
+      return await storage.getTransactionsByTag(tag);
+    },
+    enabled: tag !== null,
+  });
+}
+
 export function useCreateTransaction() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

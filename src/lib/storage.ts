@@ -1,4 +1,4 @@
-import type { Collection } from 'dexie';
+import Dexie, { type Collection } from 'dexie';
 import { db, initializeDatabase } from './db';
 import { roundMoney, toMoneyString } from './money';
 import type { Settings, Category, Transaction, Account, Transfer, ImportSnapshot, LoanSettlement } from '@shared/schema';
@@ -14,6 +14,8 @@ export interface IStorage {
 
   // Transactions
   getTransactions(month?: string, categoryId?: number, limit?: number): Promise<Transaction[]>;
+  getTransactionsByAccount(accountId: number): Promise<Transaction[]>;
+  getTransactionsByTag(tag: string): Promise<Transaction[]>;
   createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction>;
   updateTransaction(id: number, updates: Partial<Omit<Transaction, 'id'>>): Promise<Transaction>;
   deleteTransaction(id: number): Promise<void>;
@@ -36,6 +38,25 @@ export interface IStorage {
 
   // Reset all data
   resetAllData(): Promise<void>;
+}
+
+async function hydrateTransactions(transactions: Transaction[]): Promise<Transaction[]> {
+  const categories = await db.categories.toArray();
+  const categoryById = new Map(categories.filter((category) => category.id !== undefined).map((category) => [category.id!, category]));
+  return transactions.map((tx) => ({
+    ...tx,
+    categoryName: tx.categoryId != null ? categoryById.get(tx.categoryId)?.name ?? null : null,
+    loanType: tx.type === 'loan' && tx.categoryId != null
+      ? categoryById.get(tx.categoryId)?.loanType ?? tx.loanType ?? null
+      : null,
+    date: tx.date instanceof Date ? tx.date : new Date(tx.date),
+    settlements: Array.isArray(tx.settlements)
+      ? tx.settlements.map((settlement) => ({
+          ...settlement,
+          date: settlement.date instanceof Date ? settlement.date : new Date(settlement.date),
+        }))
+      : [],
+  }));
 }
 
 export class LocalStorage implements IStorage {
@@ -146,28 +167,27 @@ export class LocalStorage implements IStorage {
 
     const transactions = await collection.toArray();
 
-    const categories = await db.categories.toArray();
-    const categoryById = new Map(categories.filter((category) => category.id !== undefined).map((category) => [category.id!, category]));
-    const transactionsWithDates = transactions.map((tx: Transaction) => ({
-      ...tx,
-      categoryName: tx.categoryId != null ? categoryById.get(tx.categoryId)?.name ?? null : null,
-      loanType: tx.type === 'loan' && tx.categoryId != null
-        ? categoryById.get(tx.categoryId)?.loanType ?? tx.loanType ?? null
-        : null,
-      date: tx.date instanceof Date ? tx.date : new Date(tx.date),
-      settlements: Array.isArray(tx.settlements)
-        ? tx.settlements.map((s: LoanSettlement) => ({
-            ...s,
-            date: s.date instanceof Date ? s.date : new Date(s.date),
-          }))
-        : [],
-    }));
+    const transactionsWithDates = await hydrateTransactions(transactions);
 
     if (limit) {
       return transactionsWithDates.slice(0, limit);
     }
 
     return transactionsWithDates;
+  }
+
+  async getTransactionsByAccount(accountId: number): Promise<Transaction[]> {
+    const transactions = await db.transactions
+      .where('[accountId+date]')
+      .between([accountId, Dexie.minKey], [accountId, Dexie.maxKey])
+      .reverse()
+      .toArray();
+    return hydrateTransactions(transactions);
+  }
+
+  async getTransactionsByTag(tag: string): Promise<Transaction[]> {
+    const transactions = await db.transactions.where('tags').equals(tag).reverse().toArray();
+    return hydrateTransactions(transactions);
   }
 
   async createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
