@@ -14,12 +14,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { MonthPicker } from "@/components/MonthPicker";
 import { TransactionRow, TransferFeedRow } from "@/components/TransactionRow";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
-import { formatMoney, roundMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { useAppState } from "@/context/AppStateContext";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import { TRANSACTION_FILTER_TYPES } from "@/components/TransactionTypeTabs";
-import { monthKeyToDate } from "@/lib/month";
 import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
 import type { Transaction, Transfer } from "@shared/schema";
 
@@ -39,6 +38,7 @@ type FeedItem = { kind: "day"; dayKey: string } | { kind: "record"; dayKey: stri
 
 export default function TransactionsPage() {
   const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
+  const [searchInput, setSearchInput] = useState(searchTerm);
   
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
@@ -46,6 +46,13 @@ export default function TransactionsPage() {
   const feedContainerRef = useRef<HTMLDivElement>(null);
   const [feedScrollMargin, setFeedScrollMargin] = useState(0);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
+
+  useEffect(() => setSearchInput(searchTerm), [searchTerm]);
+  useEffect(() => {
+    if (searchInput === searchTerm) return;
+    const timeout = window.setTimeout(() => setSearchTerm(searchInput), 200);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput, searchTerm, setSearchTerm]);
 
   
 
@@ -73,12 +80,20 @@ export default function TransactionsPage() {
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
+  const accountById = useMemo(
+    () => new Map((accounts || []).flatMap((account) => account.id === undefined ? [] : [[account.id, account.name] as const])),
+    [accounts]
+  );
+  const categoryById = useMemo(
+    () => new Map((categories || []).flatMap((category) => category.id === undefined ? [] : [[category.id, category.name] as const])),
+    [categories]
+  );
   const { openEdit, openEditTransfer, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
   const currency = useCurrency();
   const noAccounts = (accounts || []).length === 0;
-  const getAccountName = (accountId?: number | null) => accounts?.find((account) => account.id === accountId)?.name ?? "Unknown account";
+  const getAccountName = (accountId?: number | null) => accountById.get(accountId ?? -1) ?? "Unknown account";
 
   const applyUrlFilters = () => {
     const params = new URLSearchParams(window.location.search);
@@ -129,42 +144,38 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && categories
-      && !categories.some((category) => String(category.id) === categoryFilter)) {
+      && !categoryById.has(Number(categoryFilter))) {
       setCategoryFilter("all");
     }
-  }, [categories, categoryFilter, setCategoryFilter]);
+  }, [categories, categoryById, categoryFilter, setCategoryFilter]);
 
-  const filteredTx = transactionsForCurrentTag.filter((tx) => {
+  const normalizedSearch = searchTerm.toLowerCase();
+  const filteredTx = useMemo(() => transactionsForCurrentTag.filter((tx) => {
     const matchesSearch =
-      tx.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getAccountName(tx.accountId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.counterparty?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (Array.isArray(tx.tags) && tx.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase())));
+      tx.categoryName?.toLowerCase().includes(normalizedSearch) ||
+      tx.note?.toLowerCase().includes(normalizedSearch) ||
+      (accountById.get(tx.accountId ?? -1) ?? "Unknown account").toLowerCase().includes(normalizedSearch) ||
+      tx.counterparty?.toLowerCase().includes(normalizedSearch) ||
+      (Array.isArray(tx.tags) && tx.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch)));
 
     const type = tx.type || "expense";
     const matchesFilter = filter === "all" || type === filter;
     const matchesTag = tagFilter === "all" || (Array.isArray(tx.tags) && tx.tags.includes(tagFilter));
     const matchesCategory = categoryFilter === "all"
       || (categoryFilter === "uncategorized" ? !tx.categoryId : String(tx.categoryId) === categoryFilter);
-    const matchesLoanStatus =
-      filter !== "loan" ||
-      loanStatusFilter === "all" ||
-      tx.loanStatus === loanStatusFilter;
-
+    const matchesLoanStatus = filter !== "loan" || loanStatusFilter === "all" || tx.loanStatus === loanStatusFilter;
     return matchesSearch && matchesFilter && matchesTag && matchesCategory && matchesLoanStatus;
-  });
+  }), [transactionsForCurrentTag, normalizedSearch, accountById, filter, tagFilter, categoryFilter, loanStatusFilter]);
 
-  const filteredTransfers = (transfers || []).filter((item) => {
-    const query = searchTerm.toLowerCase();
-    const matchesSearch = !query || item.note?.toLowerCase().includes(query)
-      || getAccountName(item.fromAccountId).toLowerCase().includes(query)
-      || getAccountName(item.toAccountId).toLowerCase().includes(query);
+  const filteredTransfers = useMemo(() => (transfers || []).filter((item) => {
+    const matchesSearch = !normalizedSearch || item.note?.toLowerCase().includes(normalizedSearch)
+      || (accountById.get(item.fromAccountId) ?? "Unknown account").toLowerCase().includes(normalizedSearch)
+      || (accountById.get(item.toAccountId) ?? "Unknown account").toLowerCase().includes(normalizedSearch);
     return (filter === "all" || filter === "transfer")
       && matchesSearch
       && tagFilter === "all"
       && categoryFilter === "all";
-  });
+  }), [transfers, normalizedSearch, accountById, filter, tagFilter, categoryFilter]);
 
   const sortedFilteredTx = useMemo(
     () => ([
@@ -223,7 +234,7 @@ export default function TransactionsPage() {
   }, [sortedFilteredTx]);
   const categoryName = (id: string) => id === "uncategorized"
     ? "Uncategorized"
-    : categories?.find((category) => String(category.id) === id)?.name ?? "All categories";
+    : categoryById.get(Number(id)) ?? "All categories";
 
   const hasAnyTransactions = (allTransactions || []).length + (allTransfers || []).length > 0;
   const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || categoryFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
@@ -357,14 +368,14 @@ export default function TransactionsPage() {
             <Input
               placeholder="Search by category, note, counterparty, tag…"
               className="rounded-2xl border-border/60 bg-card/70 pl-9 pr-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               aria-label="Search transactions"
             />
-            {searchTerm && (
+            {searchInput && (
               <button
                 type="button"
-                onClick={() => setSearchTerm("")}
+                onClick={() => setSearchInput("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Clear search"
               >

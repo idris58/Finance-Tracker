@@ -12,7 +12,6 @@ import { AppStateProvider } from "@/context/AppStateContext";
 import { PwaUpdateToast } from "@/components/PwaUpdateToast";
 import { ThemeColorMeta } from "@/components/ThemeColorMeta";
 
-// Lazy load pages for better performance (optional, but good practice)
 import HomePage from "@/pages/Home";
 import StatisticsPage from "@/pages/Statistics";
 import AccountsPage from "@/pages/Accounts";
