@@ -15,7 +15,7 @@ const baseNavItems = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { open, setOpen, openNew, transaction, initialType } = useTransactionEditor();
+  const { open, setOpen, openNew, transaction, transfer, initialType } = useTransactionEditor();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -98,7 +98,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <TransactionModal open={open} onOpenChange={setOpen} transaction={transaction ?? undefined} initialType={initialType} />
+      <TransactionModal open={open} onOpenChange={setOpen} transaction={transaction ?? undefined} transfer={transfer ?? undefined} initialType={initialType} />
     </div>
   );
 }

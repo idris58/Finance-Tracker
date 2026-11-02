@@ -1,6 +1,6 @@
 import { format } from "date-fns";
-import { Zap } from "lucide-react";
-import type { Transaction } from "@shared/schema";
+import { ArrowLeftRight, Zap } from "lucide-react";
+import type { Transaction, Transfer } from "@shared/schema";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney } from "@/lib/money";
 import { getLoanProgress } from "@/lib/loans";
@@ -116,6 +116,52 @@ export function TransactionRow({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+export function TransferFeedRow({
+  transfer,
+  currency,
+  fromAccountName,
+  toAccountName,
+  onOpen,
+}: {
+  transfer: Transfer;
+  currency: string;
+  fromAccountName: string;
+  toAccountName: string;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full flex-col gap-3 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex-row sm:items-center sm:justify-between"
+        aria-label={`Transfer ${currency}${formatMoney(Number(transfer.amount))} from ${fromAccountName} to ${toAccountName}`}
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <ArrowLeftRight className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">Transfer</p>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Between accounts</span>
+            </div>
+            <p className="break-words text-xs text-muted-foreground">{fromAccountName} <span aria-hidden="true">→</span> {toAccountName}</p>
+            {transfer.note && <p className="break-words text-xs text-muted-foreground/80">{transfer.note}</p>}
+          </div>
+        </div>
+        <div className="flex w-full items-center justify-between gap-2 pl-14 sm:w-auto sm:shrink-0 sm:pl-0">
+          <span className="text-xs text-muted-foreground sm:hidden">{format(new Date(transfer.date), "p")}</span>
+          <div className="text-right">
+            <p className="font-semibold text-foreground">{currency}{formatMoney(Number(transfer.amount))}</p>
+            <p className="hidden text-xs text-muted-foreground sm:block">{format(new Date(transfer.date), "p")}</p>
+          </div>
+        </div>
+      </button>
     </div>
   );
 }

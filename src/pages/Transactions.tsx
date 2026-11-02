@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAccounts, useCategories, useTransactions } from "@/hooks/use-finance";
+import { useAccounts, useCategories, useTransactions, useTransfers } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
 import { MonthPicker } from "@/components/MonthPicker";
-import { TransactionRow } from "@/components/TransactionRow";
+import { TransactionRow, TransferFeedRow } from "@/components/TransactionRow";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { useAppState } from "@/context/AppStateContext";
@@ -21,6 +21,7 @@ import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import { TRANSACTION_FILTER_TYPES } from "@/components/TransactionTypeTabs";
 import { monthKeyToDate } from "@/lib/month";
 import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
+import type { Transaction, Transfer } from "@shared/schema";
 
 const filterTabs = TRANSACTION_FILTER_TYPES;
 
@@ -52,6 +53,7 @@ export default function TransactionsPage() {
   
 
   const { data: allTransactions, isLoading } = useTransactions();
+  const { data: allTransfers, isLoading: isLoadingTransfers } = useTransfers();
   const transactions = useMemo(() => {
     if (monthFilter === "all") return allTransactions || [];
     return (allTransactions || []).filter((tx) => {
@@ -59,10 +61,14 @@ export default function TransactionsPage() {
       return format(d, "yyyy-MM") === monthFilter;
     });
   }, [allTransactions, monthFilter]);
+  const transfers = useMemo(() => {
+    if (monthFilter === "all") return allTransfers || [];
+    return (allTransfers || []).filter((item) => format(new Date(item.date), "yyyy-MM") === monthFilter);
+  }, [allTransfers, monthFilter]);
   const settlementTx = allTransactions?.find((transaction) => transaction.id === settlementTxId) ?? null;
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
-  const { openEdit, openNew } = useTransactionEditor();
+  const { openEdit, openEditTransfer, openNew } = useTransactionEditor();
   const [, setLocation] = useLocation();
 
   const currency = useCurrency();
@@ -144,34 +150,53 @@ export default function TransactionsPage() {
     return matchesSearch && matchesFilter && matchesTag && matchesCategory && matchesLoanStatus;
   });
 
-    const sortedFilteredTx = useMemo(
-    () => [...filteredTx].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [filteredTx]
+  const filteredTransfers = (transfers || []).filter((item) => {
+    const query = searchTerm.toLowerCase();
+    const matchesSearch = !query || item.note?.toLowerCase().includes(query)
+      || getAccountName(item.fromAccountId).toLowerCase().includes(query)
+      || getAccountName(item.toAccountId).toLowerCase().includes(query);
+    return (filter === "all" || filter === "transfer")
+      && matchesSearch
+      && tagFilter === "all"
+      && categoryFilter === "all";
+  });
+
+  type FeedRecord = { kind: "transaction"; item: Transaction } | { kind: "transfer"; item: Transfer };
+  const sortedFilteredTx = useMemo(
+    () => ([
+      ...filteredTx.map((item): FeedRecord => ({ kind: "transaction", item })),
+      ...filteredTransfers.map((item): FeedRecord => ({ kind: "transfer", item })),
+    ]).sort((a, b) => new Date(b.item.date).getTime() - new Date(a.item.date).getTime()),
+    [filteredTx, filteredTransfers]
   );
   const visibleTx = useMemo(
     () => sortedFilteredTx.slice(0, visibleCount),
     [sortedFilteredTx, visibleCount]
   );
   const groupedTx = useMemo(() => {
-    return visibleTx.reduce<Record<string, typeof visibleTx>>((groups, tx) => {
-      const key = format(new Date(tx.date), "yyyy-MM-dd");
-      (groups[key] ??= []).push(tx);
+    return visibleTx.reduce<Record<string, typeof visibleTx>>((groups, record) => {
+      const key = format(new Date(record.item.date), "yyyy-MM-dd");
+      (groups[key] ??= []).push(record);
       return groups;
     }, {});
   }, [visibleTx]);
   const summary = useMemo(() => {
     return sortedFilteredTx.reduce((totals, tx) => {
-      const amount = Number(tx.amount) || 0;
-      if (tx.type === "income" || (tx.type === "loan" && tx.loanType === "borrow")) totals.income += amount;
-      else if ((tx.type || "expense") === "expense" || (tx.type === "loan" && tx.loanType === "lend")) totals.expense += amount;
+      if (tx.kind !== "transaction") {
+        totals.transfers += Number(tx.item.amount) || 0;
+        return totals;
+      }
+      const amount = Number(tx.item.amount) || 0;
+      if (tx.item.type === "income" || (tx.item.type === "loan" && tx.item.loanType === "borrow")) totals.income += amount;
+      else if ((tx.item.type || "expense") === "expense" || (tx.item.type === "loan" && tx.item.loanType === "lend")) totals.expense += amount;
       return totals;
-    }, { income: 0, expense: 0 });
+    }, { income: 0, expense: 0, transfers: 0 });
   }, [sortedFilteredTx]);
   const categoryName = (id: string) => id === "uncategorized"
     ? "Uncategorized"
     : categories?.find((category) => String(category.id) === id)?.name ?? "All categories";
 
-  const hasAnyTransactions = (allTransactions || []).length > 0;
+  const hasAnyTransactions = (allTransactions || []).length + (allTransfers || []).length > 0;
   const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || categoryFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
 
   const emptyState = getTransactionEmptyState({
@@ -193,14 +218,21 @@ export default function TransactionsPage() {
 
   const transactionResults = (
       <div className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {!isLoading && filteredTx.length === 0 && <EmptyState {...emptyState} />}
+        {(isLoading || isLoadingTransfers) && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {!isLoading && !isLoadingTransfers && sortedFilteredTx.length === 0 && <EmptyState {...emptyState} />}
         {sortedFilteredTx.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Transactions</p><p className="mt-1 font-semibold">{sortedFilteredTx.length}</p></div>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Income</p><p className="mt-1 font-semibold text-emerald-600">{currency}{formatMoney(summary.income)}</p></div>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Expense</p><p className="mt-1 font-semibold">{currency}{formatMoney(summary.expense)}</p></div>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Net</p><p className={cn("mt-1 font-semibold", summary.income - summary.expense >= 0 ? "text-emerald-600" : "text-rose-500")}>{currency}{formatMoney(summary.income - summary.expense)}</p></div>
+          <div className={cn("grid grid-cols-2 gap-2", filter === "transfer" ? "sm:grid-cols-2" : "sm:grid-cols-5")}>
+            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Records</p><p className="mt-1 font-semibold">{sortedFilteredTx.length}</p></div>
+            {filter === "transfer" ? (
+              <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Transferred</p><p className="mt-1 font-semibold">{currency}{formatMoney(summary.transfers)}</p></div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Income</p><p className="mt-1 font-semibold text-emerald-600">{currency}{formatMoney(summary.income)}</p></div>
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Expense</p><p className="mt-1 font-semibold">{currency}{formatMoney(summary.expense)}</p></div>
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Transfers</p><p className="mt-1 font-semibold">{currency}{formatMoney(summary.transfers)}</p></div>
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Net</p><p className={cn("mt-1 font-semibold", summary.income - summary.expense >= 0 ? "text-emerald-600" : "text-rose-500")}>{currency}{formatMoney(summary.income - summary.expense)}</p></div>
+              </>
+            )}
           </div>
         )}
         {Object.entries(groupedTx).map(([dayKey, dayItems]) => (
@@ -209,15 +241,24 @@ export default function TransactionsPage() {
               {isToday(new Date(`${dayKey}T12:00:00`)) ? "Today" : isYesterday(new Date(`${dayKey}T12:00:00`)) ? "Yesterday" : format(new Date(`${dayKey}T12:00:00`), "EEEE, MMM d, yyyy")}
             </h2>
             <div className="space-y-2.5">
-        {dayItems.map((tx) => (
+        {dayItems.map((record) => record.kind === "transaction" ? (
           <TransactionRow
-            key={tx.id}
-            transaction={tx}
+            key={`transaction-${record.item.id}`}
+            transaction={record.item}
             currency={currency}
             variant="transactions"
-            accountName={getAccountName(tx.accountId)}
-            onOpen={() => tx.id && openEdit(tx)}
-            onSettle={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
+            accountName={getAccountName(record.item.accountId)}
+            onOpen={() => record.item.id && openEdit(record.item)}
+            onSettle={() => { setSettlementTxId(record.item.id ?? null); setSettlementOpen(true); }}
+          />
+        ) : (
+          <TransferFeedRow
+            key={`transfer-${record.item.id}`}
+            transfer={record.item}
+            currency={currency}
+            fromAccountName={getAccountName(record.item.fromAccountId)}
+            toAccountName={getAccountName(record.item.toAccountId)}
+            onOpen={() => openEditTransfer(record.item)}
           />
         ))}
             </div>

@@ -1,4 +1,4 @@
-import { CreditCard, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowLeftRight, CreditCard, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const TRANSACTION_TYPES = [
@@ -11,7 +11,10 @@ export type TransactionType = (typeof TRANSACTION_TYPES)[number]["id"];
 export const TRANSACTION_FILTER_TYPES = [
   { id: "all", label: "All" },
   ...TRANSACTION_TYPES,
+  { id: "transfer", label: "Transfer", icon: ArrowLeftRight, singularLabel: "Transfer" },
 ] as const;
+export type TransactionFilterType = (typeof TRANSACTION_FILTER_TYPES)[number]["id"];
+export type TransactionEditorType = TransactionType | "transfer";
 
 const activeStyles: Record<TransactionType, string> = {
   expense: "border-rose-500/40 bg-rose-500 text-white shadow-[0_8px_24px_-12px_rgba(239,68,68,0.7)]",
@@ -19,30 +22,46 @@ const activeStyles: Record<TransactionType, string> = {
   loan: "border-indigo-500/40 bg-indigo-500 text-white shadow-[0_8px_24px_-12px_rgba(99,102,241,0.7)]",
 };
 
+const transferActiveStyle = "border-primary/40 bg-primary text-primary-foreground shadow-[0_8px_24px_-12px_rgba(244,63,94,0.6)]";
+
+type PillTabsProps = {
+  value: TransactionType;
+  onValueChange: (value: TransactionType) => void;
+  variant?: "pills";
+};
+type ModalTabsProps = {
+  value: TransactionEditorType;
+  onValueChange: (value: TransactionEditorType) => void;
+  variant: "modal";
+};
+
+export function TransactionTypeTabs(props: PillTabsProps): JSX.Element;
+export function TransactionTypeTabs(props: ModalTabsProps): JSX.Element;
 export function TransactionTypeTabs({
   value,
   onValueChange,
   variant = "pills",
-}: {
-  value: TransactionType;
-  onValueChange: (value: TransactionType) => void;
-  variant?: "pills" | "modal";
-}) {
+}: PillTabsProps | ModalTabsProps): JSX.Element {
+  const selectTab = (id: TransactionEditorType) => {
+    if (id === "transfer") (onValueChange as ModalTabsProps["onValueChange"])(id);
+    else (onValueChange as PillTabsProps["onValueChange"])(id);
+  };
   return (
-    <div className={cn("flex gap-3", variant === "modal" && "gap-2")} role="group" aria-label="Transaction type">
-      {TRANSACTION_TYPES.map((tab) => {
+    <div className={cn(variant === "modal" ? "grid grid-cols-2 gap-2 sm:grid-cols-4" : "flex gap-3")} role="group" aria-label="Transaction type">
+      {[...TRANSACTION_TYPES, ...(variant === "modal" ? [{ id: "transfer" as const, label: "Transfer", singularLabel: "Transfer", icon: ArrowLeftRight }] : [])].map((tab) => {
         const Icon = tab.icon;
         const selected = value === tab.id;
+        const selectedStyle = tab.id === "transfer" ? transferActiveStyle : activeStyles[tab.id];
         return (
           <button
             key={tab.id}
             type="button"
             aria-pressed={selected}
-            onClick={() => onValueChange(tab.id)}
+            onClick={() => selectTab(tab.id)}
             className={variant === "modal"
               ? cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-sm font-semibold transition-all",
-                  selected ? activeStyles[tab.id] : "border-border/60 bg-card/70 text-muted-foreground hover:text-foreground"
+                  "flex min-w-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-2.5 text-xs font-semibold transition-all sm:px-3 sm:text-sm",
+                  selected ? selectedStyle : "border-border/60 bg-card/70 text-muted-foreground hover:text-foreground"
                 )
               : cn(
                   "flex-1 rounded-full border px-4 py-2 text-sm font-semibold transition-all",

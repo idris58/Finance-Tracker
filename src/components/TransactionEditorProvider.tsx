@@ -1,15 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { Transaction } from "@shared/schema";
+import type { Transaction, Transfer } from "@shared/schema";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
+import type { TransactionType } from "@/components/TransactionTypeTabs";
 
-type TxType = "expense" | "income" | "loan";
+export type EditorType = TransactionType | "transfer";
 
 type TransactionEditorContextValue = {
   open: boolean;
   transaction?: Transaction | null;
-  initialType?: TxType;
-  openNew: (type?: TxType | React.SyntheticEvent | unknown) => void;
+  transfer?: Transfer | null;
+  initialType?: EditorType;
+  openNew: (type?: EditorType | React.SyntheticEvent | unknown) => void;
   openEdit: (tx: Transaction) => void;
+  openEditTransfer: (transfer: Transfer) => void;
   setOpen: (open: boolean) => void;
 };
 
@@ -18,22 +21,32 @@ const TransactionEditorContext = createContext<TransactionEditorContextValue | n
 export function TransactionEditorProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpenState] = useState(false);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
-  const [initialType, setInitialType] = useState<TxType>("expense");
+  const [transfer, setTransfer] = useState<Transfer | null>(null);
+  const [initialType, setInitialType] = useState<EditorType>("expense");
   useHistoryBackDismiss(open, () => setOpenState(false));
 
   const openNew = useCallback((type?: unknown) => {
-    const resolvedType: TxType =
-      type === "expense" || type === "income" || type === "loan"
+    const resolvedType: EditorType =
+      type === "expense" || type === "income" || type === "loan" || type === "transfer"
         ? type
         : "expense";
     setTransaction(null);
+    setTransfer(null);
     setInitialType(resolvedType);
     setOpenState(true);
   }, []);
 
   const openEdit = useCallback((tx: Transaction) => {
+    setTransfer(null);
     setTransaction(tx);
-    setInitialType((tx.type as TxType) ?? "expense");
+    setInitialType((tx.type as TransactionType) ?? "expense");
+    setOpenState(true);
+  }, []);
+
+  const openEditTransfer = useCallback((item: Transfer) => {
+    setTransaction(null);
+    setTransfer(item);
+    setInitialType("transfer");
     setOpenState(true);
   }, []);
 
@@ -41,6 +54,7 @@ export function TransactionEditorProvider({ children }: { children: React.ReactN
     setOpenState(next);
     if (!next) {
       setTransaction(null);
+      setTransfer(null);
       setInitialType("expense");
     }
   }, []);
@@ -49,8 +63,8 @@ export function TransactionEditorProvider({ children }: { children: React.ReactN
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const action = params.get("action");
-    if (action === "expense" || action === "income") {
-      openNew(action as TxType);
+    if (action === "expense" || action === "income" || action === "transfer") {
+      openNew(action as EditorType);
       const url = new URL(window.location.href);
       url.searchParams.delete("action");
       window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
@@ -58,8 +72,8 @@ export function TransactionEditorProvider({ children }: { children: React.ReactN
   }, [openNew]);
 
   const value = useMemo(
-    () => ({ open, transaction, initialType, openNew, openEdit, setOpen }),
-    [open, transaction, initialType, openNew, openEdit, setOpen]
+    () => ({ open, transaction, transfer, initialType, openNew, openEdit, openEditTransfer, setOpen }),
+    [open, transaction, transfer, initialType, openNew, openEdit, openEditTransfer, setOpen]
   );
 
   return (

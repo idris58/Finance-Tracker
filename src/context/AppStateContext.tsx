@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type TransactionFilter = "all" | "expense" | "income" | "loan";
+export type TransactionFilter = "all" | "expense" | "income" | "loan" | "transfer";
 export type LoanStatusFilter = "all" | "open" | "partial" | "settled";
 
 type StoredState = {

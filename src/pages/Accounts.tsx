@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { CalendarIcon, CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Pencil } from "lucide-react";
+import { CreditCard, Landmark, Plus, Repeat, Wallet, Smartphone, History, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts, useCreateAccount, useDeleteTransfer, useTransferBetweenAccounts, useTransfers, useUpdateTransfer } from "@/hooks/use-finance";
+import { useAccounts, useCreateAccount, useDeleteTransfer, useTransfers } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -19,14 +19,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { SensitiveValue } from "@/context/AppStateContext";
 import { EmptyState } from "@/components/EmptyState";
 import { BalanceCard } from "@/components/BalanceCard";
+import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 
 const accountTypes = [
   { value: "Cash", label: "Cash", icon: Wallet },
@@ -40,50 +39,23 @@ type AccountForm = {
   balance: string;
 };
 
-type TransferForm = {
-  fromAccountId: number | null;
-  toAccountId: number | null;
-  amount: string;
-  note: string;
-  date: Date;
-};
-
 export default function AccountsPage() {
   const { data: accounts } = useAccounts();
   const { mutate: createAccount, isPending: isCreating } = useCreateAccount();
-  const { mutate: transferBetweenAccounts, isPending: isTransferring } = useTransferBetweenAccounts();
-  const { mutate: updateTransfer, isPending: isUpdatingTransfer } = useUpdateTransfer();
   const { mutate: deleteTransfer } = useDeleteTransfer();
   const { data: transfers } = useTransfers();
+  const { openNew, openEditTransfer } = useTransactionEditor();
   const [, navigate] = useLocation();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [form, setForm] = useState<AccountForm>({ name: "", type: "Cash", balance: "0" });
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [editingTransferId, setEditingTransferId] = useState<number | null>(null);
-  const [transferForm, setTransferForm] = useState<TransferForm>({
-    fromAccountId: null,
-    toAccountId: null,
-    amount: "",
-    note: "",
-    date: new Date(),
-  });
 
   const totalBalance = useMemo(
     () => roundMoney(accounts?.reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 0),
     [accounts]
   );
   const currency = useCurrency();
-
-  const fromAccount = useMemo(() => (accounts || []).find((acc) => acc.id === transferForm.fromAccountId) || null, [accounts, transferForm.fromAccountId]);
-  const editingTransfer = transfers?.find((item) => item.id === editingTransferId);
-  const fromBalance = fromAccount
-    ? Number(fromAccount.balance || 0) + (editingTransfer && editingTransfer.fromAccountId === fromAccount.id ? Number(editingTransfer.amount) : 0)
-    : 0;
-  const transferAmount = Number(transferForm.amount || 0);
-  const insufficientBalance = !!fromAccount && transferAmount > fromBalance;
-  const sameAccountError = !!(transferForm.fromAccountId && transferForm.toAccountId && transferForm.fromAccountId === transferForm.toAccountId);
 
   const accountNameMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -124,52 +96,10 @@ export default function AccountsPage() {
     );
   };
 
-  const resetTransferForm = () => {
-    setTransferForm({
-      fromAccountId: null,
-      toAccountId: null,
-      amount: "",
-      note: "",
-      date: new Date(),
-    });
-  };
-
-  const handleTransfer = () => {
-    if (!transferForm.fromAccountId || !transferForm.toAccountId) return;
-    if (!transferForm.amount || Number(transferForm.amount) <= 0) return;
-    const data = {
-      fromAccountId: transferForm.fromAccountId,
-      toAccountId: transferForm.toAccountId,
-      amount: transferForm.amount,
-      note: transferForm.note || null,
-      date: transferForm.date,
-    };
-    const onSuccess = () => {
-      setTransferOpen(false);
-      setEditingTransferId(null);
-      resetTransferForm();
-    };
-    if (editingTransferId !== null) {
-      updateTransfer({ id: editingTransferId, data }, { onSuccess });
-      return;
-    }
-    transferBetweenAccounts(data, {
-      onSuccess,
-    });
-  };
-
   const startEditTransfer = (item: NonNullable<typeof transfers>[number]) => {
     if (item.id === undefined) return;
-    setEditingTransferId(item.id);
-    setTransferForm({
-      fromAccountId: item.fromAccountId,
-      toAccountId: item.toAccountId,
-      amount: item.amount,
-      note: item.note ?? "",
-      date: new Date(item.date),
-    });
     setLogOpen(false);
-    setTransferOpen(true);
+    openEditTransfer(item);
   };
 
   return (
@@ -180,125 +110,9 @@ export default function AccountsPage() {
         <div className="flex items-center justify-between sm:items-center">
           <h3 className="text-lg font-semibold">Accounts</h3>
           <div className="flex flex-wrap items-center gap-2">
-            <Dialog open={transferOpen} onOpenChange={(next) => {
-              setTransferOpen(next);
-              if (!next) {
-                setEditingTransferId(null);
-                resetTransferForm();
-              }
-            }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-full whitespace-nowrap" disabled={(accounts || []).length < 2}>
-                  <Repeat className="mr-2 h-4 w-4" /> Transfer
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle>{editingTransferId !== null ? "Edit transfer" : "Transfer between accounts"}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>From account</Label>
-                    <Select
-                      value={transferForm.fromAccountId?.toString() || ""}
-                      onValueChange={(value) => setTransferForm((prev) => ({
-                        ...prev,
-                        fromAccountId: Number(value),
-                        toAccountId: prev.toAccountId === Number(value) ? null : prev.toAccountId,
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(accounts || []).map((account) => (
-                          <SelectItem key={account.id} value={String(account.id)}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>To account</Label>
-                    <Select
-                      value={transferForm.toAccountId?.toString() || ""}
-                      onValueChange={(value) => setTransferForm((prev) => ({ ...prev, toAccountId: Number(value) }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(accounts || []).filter((account) => account.id !== transferForm.fromAccountId).map((account) => (
-                          <SelectItem key={account.id} value={String(account.id)}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {sameAccountError && (
-                      <p className="text-xs text-rose-500">Cannot transfer to the same account.</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input
-                      type="number"
-                      value={transferForm.amount}
-                      onChange={(event) => setTransferForm((prev) => ({ ...prev, amount: event.target.value }))}
-                    />
-                    {insufficientBalance && (
-                      <p className="text-xs text-rose-500">
-                        Not enough balance in {fromAccount?.name || "selected account"}. Available {currency}{formatMoney(fromBalance)}.
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between">
-                          {format(transferForm.date, "PPP")}
-                          <CalendarIcon className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={transferForm.date}
-                          onSelect={(date) => date && setTransferForm((prev) => ({ ...prev, date }))}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Note</Label>
-                    <Input
-                      value={transferForm.note}
-                      onChange={(event) => setTransferForm((prev) => ({ ...prev, note: event.target.value }))}
-                      placeholder="Optional note"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleTransfer}
-                    disabled={
-                      isTransferring || isUpdatingTransfer ||
-                      !transferForm.fromAccountId ||
-                      !transferForm.toAccountId ||
-                      transferForm.fromAccountId === transferForm.toAccountId ||
-                      !transferForm.amount ||
-                      Number(transferForm.amount) <= 0 ||
-                      insufficientBalance
-                    }
-                    className="w-full"
-                  >
-                    {editingTransferId !== null ? "Save changes" : "Transfer"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" className="rounded-full whitespace-nowrap" onClick={() => openNew("transfer")}>
+              <Repeat className="mr-2 h-4 w-4" /> Transfer
+            </Button>
 
             <Dialog open={logOpen} onOpenChange={setLogOpen}>
               <DialogTrigger asChild>

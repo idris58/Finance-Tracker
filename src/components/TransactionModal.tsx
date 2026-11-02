@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { CalendarIcon, CreditCard, Trash2, X, Zap } from "lucide-react";
-import { insertTransactionSchema, type Transaction } from "@shared/schema";
+import { insertTransactionSchema, type Transaction, type Transfer } from "@shared/schema";
 import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney } from "@/lib/money";
-import { TransactionTypeTabs, type TransactionType } from "@/components/TransactionTypeTabs";
+import { TransactionTypeTabs, type TransactionEditorType, type TransactionType } from "@/components/TransactionTypeTabs";
+import { TransferEditorFields } from "@/components/TransferEditorFields";
 
 const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettlementAccountId: true, settlementDate: true }).extend({
   amount: z.string()
@@ -46,12 +47,14 @@ export function TransactionModal({
   open,
   onOpenChange,
   transaction,
+  transfer,
   initialType,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
-  initialType?: TransactionType;
+  transfer?: Transfer;
+  initialType?: TransactionEditorType;
 }) {
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
@@ -59,7 +62,7 @@ export function TransactionModal({
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions();
-  const [activeType, setActiveType] = useState<TransactionType>("expense");
+  const [activeType, setActiveType] = useState<TransactionEditorType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const [rememberedAccountId, setRememberedAccountId] = useState<number | null>(() => {
@@ -108,6 +111,13 @@ export function TransactionModal({
   useEffect(() => {
     if (!open) return;
 
+    if (transfer?.id !== undefined) {
+      setActiveType("transfer");
+      form.reset({ amount: "", categoryId: 0, accountId: defaultAccountId, counterparty: "", note: "", date: new Date(), type: "expense", loanType: null, tags: [] });
+      setTagDraft("");
+      return;
+    }
+
     if (transaction && transaction.id) {
       setActiveType(transaction.type ?? "expense");
       form.reset({
@@ -127,8 +137,8 @@ export function TransactionModal({
       return;
     }
 
-    const targetType = initialType ?? "expense";
-    setActiveType(targetType);
+    const targetType: TransactionType = initialType && initialType !== "transfer" ? initialType : "expense";
+    setActiveType(initialType ?? targetType);
     form.reset({
       amount: "",
       categoryId: 0,
@@ -141,13 +151,13 @@ export function TransactionModal({
       tags: [],
     });
     setTagDraft("");
-  }, [open, defaultAccountId, form, transaction, initialType]);
+  }, [open, defaultAccountId, form, transaction, transfer, initialType]);
 
   useEffect(() => {
-    if (!open || transaction?.id) return;
+    if (!open || transaction?.id || transfer?.id !== undefined || initialType === "transfer") return;
     const timeout = window.setTimeout(() => document.getElementById("tx-amount")?.focus(), 100);
     return () => window.clearTimeout(timeout);
-  }, [open, transaction?.id]);
+  }, [open, transaction?.id, transfer?.id, initialType]);
 
   const rememberAccount = (accountId: number) => {
     setRememberedAccountId(accountId);
@@ -198,9 +208,10 @@ export function TransactionModal({
     return list.filter((cat) => cat.type === activeType);
   }, [categories, activeType]);
 
-  const handleTypeChange = (type: TransactionType) => {
+  const handleTypeChange = (type: TransactionEditorType) => {
     blurActiveInput();
     setActiveType(type);
+    if (type === "transfer") return;
     form.setValue("type", type);
     if (type !== "loan") {
       form.setValue("loanType", null);
@@ -215,23 +226,40 @@ export function TransactionModal({
 
   const selectedAccount = accounts?.find((a) => a.id === watchAccountId);
   const isEditMode = !!transaction?.id;
+  const isTransferMode = activeType === "transfer";
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent className="flex h-[92dvh] flex-col rounded-t-3xl border border-border/60 bg-background">
         <DrawerHeader className="border-b border-border/40 pb-3 text-left">
           <DrawerTitle className="text-base font-semibold">
-            {isEditMode ? "Edit transaction" : "New transaction"}
+            {isTransferMode
+              ? transfer?.id !== undefined ? "Edit transfer" : "New transfer"
+              : isEditMode ? "Edit transaction" : "New transaction"}
           </DrawerTitle>
         </DrawerHeader>
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!isTransferMode) void form.handleSubmit(onSubmit)(event);
+            }}
             className="flex-1 space-y-4 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
             {/* Type Tabs */}
             <TransactionTypeTabs value={activeType} onValueChange={handleTypeChange} variant="modal" />
+
+            {isTransferMode ? (
+              <TransferEditorFields
+                transfer={transfer}
+                accounts={accounts || []}
+                currency={currency}
+                defaultFromAccountId={defaultAccountId}
+                onSaved={() => onOpenChange(false)}
+              />
+            ) : (
+              <>
 
             {/* Amount */}
             <FormField
@@ -558,6 +586,8 @@ export function TransactionModal({
               >
                 {isCreating ? "Saving…" : `Save ${activeType === "expense" ? "Expense" : activeType === "income" ? "Income" : "Loan"}`}
               </Button>
+            )}
+              </>
             )}
           </form>
         </Form>
