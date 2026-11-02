@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { format, subMonths } from "date-fns";
-import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Info } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useLocation } from "wouter";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-finance";
@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { MonthPicker } from "@/components/MonthPicker";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionTypeTabs, type TransactionType } from "@/components/TransactionTypeTabs";
 import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
@@ -245,36 +245,39 @@ export default function StatisticsPage() {
               </SheetTrigger>
             )}
           />
-          <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
+          <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <SheetHeader>
               <SheetTitle>Balance overview</SheetTitle>
+              <SheetDescription>Review income, expenses, lending, and borrowing by month.</SheetDescription>
             </SheetHeader>
             <div className="mt-4 space-y-4">
-              <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4">
-                <div className="text-sm text-muted-foreground">Year</div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-gradient-to-r from-primary/10 via-card/80 to-card/80 p-3 sm:p-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Showing year</p>
+                  <p className="text-lg font-bold tabular-nums text-primary" aria-live="polite">{yearSummary.currentYear}</p>
+                </div>
                 <div className="flex items-center gap-3">
-                  <Button type="button" variant="ghost" size="icon" aria-label="Previous year" onClick={() => setSummaryYear((year) => year - 1)}>
+                  <Button type="button" variant="outline" size="icon" className="rounded-full" aria-label="Previous year" onClick={() => setSummaryYear((year) => year - 1)}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="min-w-12 text-center text-sm font-semibold text-primary">{yearSummary.currentYear}</span>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Next year" onClick={() => setSummaryYear((year) => year + 1)}>
+                  <Button type="button" variant="outline" size="icon" className="rounded-full" aria-label="Next year" onClick={() => setSummaryYear((year) => year + 1)}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+                <div className="min-w-0 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3 sm:p-4">
                   <p className="text-xs text-muted-foreground">Total expense</p>
-                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalExpense)}</p>
+                  <p className="mt-1 truncate text-base font-bold tabular-nums sm:mt-2 sm:text-lg">{currency}{formatMoney(yearSummary.totalExpense)}</p>
                 </div>
-                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                <div className="min-w-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 sm:p-4">
                   <p className="text-xs text-muted-foreground">Total income</p>
-                  <p className="mt-2 text-lg font-semibold">{currency}{formatMoney(yearSummary.totalIncome)}</p>
+                  <p className="mt-1 truncate text-base font-bold tabular-nums sm:mt-2 sm:text-lg">{currency}{formatMoney(yearSummary.totalIncome)}</p>
                 </div>
-                <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
+                <div className="col-span-2 min-w-0 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:col-span-1 sm:p-4">
                   <p className="text-xs text-muted-foreground">Net income (excludes loans)</p>
                   <p className={cn(
-                    "mt-2 text-lg font-semibold",
+                    "mt-1 truncate text-base font-bold tabular-nums sm:mt-2 sm:text-lg",
                     yearSummary.totalIncome - yearSummary.totalExpense < 0 ? "text-rose-500" : "text-emerald-500"
                   )}>
                     {currency}{formatMoney(roundMoney(yearSummary.totalIncome - yearSummary.totalExpense))}
@@ -286,60 +289,81 @@ export default function StatisticsPage() {
 
               {yearSummary.table.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-xs">
-                  <p className="px-3 pt-3 text-xs text-muted-foreground">
-                    Borrow net and Lend net subtract settlements from new loans. Negative values mean repayments exceeded new loans that month.
-                  </p>
-                  <div className="divide-y divide-border/60 md:hidden max-h-[40vh] overflow-y-auto">
+                  <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
+                    <div>
+                      <h3 className="text-sm font-semibold">Monthly cash flow</h3>
+                      <p className="mt-0.5 text-xs text-muted-foreground">Amounts include loan payments recorded in each month.</p>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" aria-label="About lent out, borrowed, and net cash flow">
+                          <Info className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="max-w-[calc(100vw-2rem)] rounded-2xl text-sm sm:max-w-xs">
+                        <p className="font-semibold">How to read these amounts</p>
+                        <ul className="mt-2 space-y-2 text-muted-foreground">
+                          <li><span className="font-medium text-foreground">Lent out</span> is new lending minus repayments received.</li>
+                          <li><span className="font-medium text-foreground">Borrowed</span> is new borrowing minus repayments made.</li>
+                          <li><span className="font-medium text-foreground">Net cash flow</span> is income + borrowed − expense − lent out.</li>
+                        </ul>
+                        <p className="mt-2 text-xs text-muted-foreground">A negative lending or borrowing amount means repayments in that month exceeded new loans.</p>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="max-h-[45dvh] divide-y divide-border/60 overflow-y-auto lg:hidden">
                     {yearSummary.table.map((row) => (
-                      <div key={row.month} className="space-y-2 px-3 py-3 text-sm">
-                        <div className="font-semibold">
+                      <div key={row.month} className="space-y-2 px-3 py-3 text-sm sm:px-4">
+                        <div className="font-semibold text-primary">
                           {format(monthKeyToDate(row.month), "MMMM")}
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <span className="text-muted-foreground">Expense</span>
-                          <span className="text-right">{currency}{formatMoney(row.expense)}</span>
+                          <span className="text-right tabular-nums">{currency}{formatMoney(row.expense)}</span>
                           <span className="text-muted-foreground">Income</span>
-                          <span className="text-right">{currency}{formatMoney(row.income)}</span>
-                          <span className="text-muted-foreground">Lend net</span>
-                          <span className="text-right">{currency}{formatMoney(row.lend)}</span>
-                          <span className="text-muted-foreground">Borrow net</span>
-                          <span className="text-right">{currency}{formatMoney(row.borrow)}</span>
-                          <span className="text-muted-foreground">Cash movement (incl. loans)</span>
-                          <span className={cn("text-right font-semibold", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <span className="text-right tabular-nums">{currency}{formatMoney(row.income)}</span>
+                          <span className="text-muted-foreground">Lent out</span>
+                          <span className="text-right tabular-nums">{currency}{formatMoney(row.lend)}</span>
+                          <span className="text-muted-foreground">Borrowed</span>
+                          <span className="text-right tabular-nums">{currency}{formatMoney(row.borrow)}</span>
+                          <span className="font-medium text-foreground">Net cash flow</span>
+                          <span className={cn("text-right font-semibold tabular-nums", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
                             {currency}{formatMoney(row.balance)}
                           </span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <table className="hidden w-full table-fixed text-sm md:table">
+                  <div className="hidden overflow-x-auto lg:block">
+                    <table className="w-full min-w-[820px] text-sm" aria-label={`Monthly cash flow for ${yearSummary.currentYear}`}>
                       <thead>
                         <tr className="border-b border-border/60 bg-secondary/60 text-muted-foreground">
-                          <th className="px-3 py-2 text-left font-semibold">Month</th>
-                          <th className="px-3 py-2 text-right font-semibold">Expense</th>
-                          <th className="px-3 py-2 text-right font-semibold">Income</th>
-                          <th className="px-3 py-2 text-right font-semibold">Lend net</th>
-                          <th className="px-3 py-2 text-right font-semibold">Borrow net</th>
-                          <th className="px-3 py-2 text-right font-semibold">Cash movement</th>
+                          <th scope="col" className="px-4 py-3 text-left font-semibold">Month</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Expense</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Income</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Lent out</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Borrowed</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Net cash flow</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {yearSummary.table.map((row) => (
-                          <tr key={row.month} className="border-b border-border/60 last:border-b-0">
-                            <td className="px-3 py-2 font-medium">
+                        {yearSummary.table.map((row, index) => (
+                          <tr key={row.month} className={cn("border-b border-border/60 last:border-b-0", index % 2 === 1 && "bg-secondary/20")}>
+                            <th scope="row" className="px-4 py-3 text-left font-semibold">
                               {format(monthKeyToDate(row.month), "MMMM")}
-                            </td>
-                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.expense)}</td>
-                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.income)}</td>
-                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.lend)}</td>
-                            <td className="px-3 py-2 text-right">{currency}{formatMoney(row.borrow)}</td>
-                            <td className={cn("px-3 py-2 text-right", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
+                            </th>
+                            <td className="px-4 py-3 text-right tabular-nums">{currency}{formatMoney(row.expense)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{currency}{formatMoney(row.income)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{currency}{formatMoney(row.lend)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{currency}{formatMoney(row.borrow)}</td>
+                            <td className={cn("px-4 py-3 text-right font-semibold tabular-nums", row.balance < 0 ? "text-rose-500" : "text-emerald-500")}>
                               {currency}{formatMoney(row.balance)}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
                 </div>
               )}
             </div>
