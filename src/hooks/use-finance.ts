@@ -726,7 +726,7 @@ export function useCloudRestoreByFile() {
   });
 }
 
-export function useStoragePersistence() {
+export function useStoragePersistence(autoRequest = false) {
   const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
   const [isRequesting, setIsRequesting] = useState<boolean>(false);
@@ -795,11 +795,12 @@ export function useStoragePersistence() {
       return;
     }
 
-    // Auto-check and request persistence if not already granted
+    // Always check current status, and only request automatically when a
+    // caller opts in (the app shell does this at startup).
     navigator.storage.persisted()
       .then((persisted) => {
         setIsPersisted(persisted);
-        if (!persisted && navigator.storage?.persist) {
+        if (autoRequest && !persisted && navigator.storage?.persist) {
           navigator.storage.persist().then((granted) => {
             setIsPersisted(granted);
           }).catch(() => {
@@ -810,7 +811,7 @@ export function useStoragePersistence() {
       .catch(() => {
         setIsSupported(false);
       });
-  }, []);
+  }, [autoRequest]);
 
   return {
     isPersisted,

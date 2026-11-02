@@ -11,6 +11,7 @@ import { TransactionEditorProvider } from "@/components/TransactionEditorProvide
 import { AppStateProvider } from "@/context/AppStateContext";
 import { PwaUpdateToast } from "@/components/PwaUpdateToast";
 import { ThemeColorMeta } from "@/components/ThemeColorMeta";
+import { useStoragePersistence } from "@/hooks/use-finance";
 
 import HomePage from "@/pages/Home";
 import StatisticsPage from "@/pages/Statistics";
@@ -56,6 +57,7 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <ThemeColorMeta />
         <AppStateProvider>
+          <StoragePersistenceBootstrap />
           <TransactionEditorProvider>
             <WouterRouter>
               <TooltipProvider>
@@ -69,6 +71,11 @@ function App() {
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function StoragePersistenceBootstrap() {
+  useStoragePersistence(true);
+  return null;
 }
 
 export default App;
