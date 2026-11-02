@@ -165,10 +165,10 @@ export function TransactionModal({
   }, [open, defaultAccountId, form, transaction, initialType]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || transaction?.id) return;
     const timeout = window.setTimeout(() => document.getElementById("tx-amount")?.focus(), 100);
     return () => window.clearTimeout(timeout);
-  }, [open]);
+  }, [open, transaction?.id]);
 
   const rememberAccount = (accountId: number) => {
     setRememberedAccountId(accountId);
@@ -295,7 +295,7 @@ export function TransactionModal({
                       step="0.01"
                       placeholder="0.00"
                       inputMode="decimal"
-                      autoFocus
+                      autoFocus={!transaction?.id}
                       className="pl-8 text-xl font-bold tracking-tight"
                     />
                   </div>
