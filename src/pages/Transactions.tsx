@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useLayoutEffect, useRef } from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { Search, X } from "lucide-react";
+import { Search, X, SlidersHorizontal } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { useAccounts, useCategories, useTransactions, useTransactionsByTag, useTransfers } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import { TRANSACTION_FILTER_TYPES } from "@/components/TransactionTypeTabs";
 import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { Transaction, Transfer } from "@shared/schema";
 
 const filterTabs = TRANSACTION_FILTER_TYPES;
@@ -33,12 +35,19 @@ const loanStatusTabs = [
 
 type FilterType = (typeof filterTabs)[number]["id"];
 type LoanStatusFilter = (typeof loanStatusTabs)[number]["id"];
+type SortOrder = "newest" | "oldest" | "amount-desc" | "amount-asc";
 type FeedRecord = { kind: "transaction"; item: Transaction } | { kind: "transfer"; item: Transfer };
 type FeedItem = { kind: "day"; dayKey: string } | { kind: "record"; dayKey: string; record: FeedRecord };
 
 export default function TransactionsPage() {
   const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
   const [searchInput, setSearchInput] = useState(searchTerm);
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [minimumAmount, setMinimumAmount] = useState("");
+  const [maximumAmount, setMaximumAmount] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
@@ -97,17 +106,28 @@ export default function TransactionsPage() {
 
   const applyUrlFilters = () => {
     const params = new URLSearchParams(window.location.search);
-    if (params.size > 0) {
-      const month = params.get("month");
-      const type = params.get("type");
-      const status = params.get("status");
-      setMonthFilter(month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : "all");
-      setFilter(filterTabs.some((tab) => tab.id === type) ? type as FilterType : "all");
-      setLoanStatusFilter(loanStatusTabs.some((tab) => tab.id === status) ? status as LoanStatusFilter : "all");
-      setTagFilter(params.get("tag") || "all");
-      setCategoryFilter(params.get("category") || "all");
-      setSearchTerm(params.get("q") || "");
-    }
+    const month = params.get("month");
+    const type = params.get("type");
+    const status = params.get("status");
+    const amountMin = params.get("min") || "";
+    const amountMax = params.get("max") || "";
+    const startDate = params.get("from") || "";
+    const endDate = params.get("to") || "";
+    const query = params.get("q") || "";
+    const sort = params.get("sort");
+    setMonthFilter(month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : "all");
+    setFilter(filterTabs.some((tab) => tab.id === type) ? type as FilterType : "all");
+    setLoanStatusFilter(loanStatusTabs.some((tab) => tab.id === status) ? status as LoanStatusFilter : "all");
+    setTagFilter(params.get("tag") || "all");
+    setCategoryFilter(params.get("category") || "all");
+    setAccountFilter(params.get("account") || "all");
+    setMinimumAmount(amountMin);
+    setMaximumAmount(amountMax);
+    setDateFrom(startDate);
+    setDateTo(endDate);
+    setSortOrder(sort === "oldest" || sort === "amount-desc" || sort === "amount-asc" ? sort : "newest");
+    setSearchTerm(query);
+    setSearchInput(query);
     setUrlReady(true);
   };
 
@@ -125,11 +145,17 @@ export default function TransactionsPage() {
     if (filter === "loan" && loanStatusFilter !== "all") params.set("status", loanStatusFilter);
     if (tagFilter !== "all") params.set("tag", tagFilter);
     if (categoryFilter !== "all") params.set("category", categoryFilter);
+    if (accountFilter !== "all") params.set("account", accountFilter);
+    if (minimumAmount) params.set("min", minimumAmount);
+    if (maximumAmount) params.set("max", maximumAmount);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    if (sortOrder !== "newest") params.set("sort", sortOrder);
     if (searchTerm.trim()) params.set("q", searchTerm.trim());
     const query = params.toString();
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState(window.history.state, "", nextUrl);
-  }, [urlReady, monthFilter, filter, loanStatusFilter, tagFilter, categoryFilter, searchTerm]);
+  }, [urlReady, monthFilter, filter, loanStatusFilter, tagFilter, categoryFilter, accountFilter, minimumAmount, maximumAmount, dateFrom, dateTo, sortOrder, searchTerm]);
 
   const availableTags = useMemo(
     () => Array.from(new Set((allTransactions || []).flatMap((tx) => Array.isArray(tx.tags) ? tx.tags : []))).sort(),
@@ -149,54 +175,90 @@ export default function TransactionsPage() {
     }
   }, [categories, categoryById, categoryFilter, setCategoryFilter]);
 
+  useEffect(() => {
+    if (accountFilter !== "all" && accounts && !accountById.has(Number(accountFilter))) {
+      setAccountFilter("all");
+    }
+  }, [accounts, accountById, accountFilter]);
+
   const normalizedSearch = searchTerm.toLowerCase();
+  const amountSearchQuery = normalizedSearch.replace(/[^\d.-]/g, "");
+  const minimumAmountValue = minimumAmount === "" ? null : Number(minimumAmount);
+  const maximumAmountValue = maximumAmount === "" ? null : Number(maximumAmount);
+  const invalidAmountRange = minimumAmountValue !== null && maximumAmountValue !== null && minimumAmountValue > maximumAmountValue;
+  const invalidDateRange = !!dateFrom && !!dateTo && dateFrom > dateTo;
   const filteredTx = useMemo(() => transactionsForCurrentTag.filter((tx) => {
-    const matchesSearch =
+    const amount = Number(tx.amount) || 0;
+    const matchesAmountSearch = !!amountSearchQuery && [String(amount), formatMoney(amount)]
+      .some((value) => value.replace(/,/g, "").includes(amountSearchQuery));
+    const txDate = format(new Date(tx.date), "yyyy-MM-dd");
+    const matchesSearch = !normalizedSearch ||
       tx.categoryName?.toLowerCase().includes(normalizedSearch) ||
       tx.note?.toLowerCase().includes(normalizedSearch) ||
       (accountById.get(tx.accountId ?? -1) ?? "Unknown account").toLowerCase().includes(normalizedSearch) ||
       tx.counterparty?.toLowerCase().includes(normalizedSearch) ||
-      (Array.isArray(tx.tags) && tx.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch)));
+      (Array.isArray(tx.tags) && tx.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch))) ||
+      matchesAmountSearch;
 
     const type = tx.type || "expense";
     const matchesFilter = filter === "all" || type === filter;
     const matchesTag = tagFilter === "all" || (Array.isArray(tx.tags) && tx.tags.includes(tagFilter));
+    const matchesAccount = accountFilter === "all" || tx.accountId === Number(accountFilter);
+    const matchesAmount = (minimumAmountValue === null || amount >= minimumAmountValue) && (maximumAmountValue === null || amount <= maximumAmountValue);
+    const matchesDate = !invalidDateRange && (!dateFrom || txDate >= dateFrom) && (!dateTo || txDate <= dateTo);
     const matchesCategory = categoryFilter === "all"
       || (categoryFilter === "uncategorized" ? !tx.categoryId : String(tx.categoryId) === categoryFilter);
     const matchesLoanStatus = filter !== "loan" || loanStatusFilter === "all" || tx.loanStatus === loanStatusFilter;
-    return matchesSearch && matchesFilter && matchesTag && matchesCategory && matchesLoanStatus;
-  }), [transactionsForCurrentTag, normalizedSearch, accountById, filter, tagFilter, categoryFilter, loanStatusFilter]);
+    return matchesSearch && matchesFilter && matchesTag && matchesCategory && matchesAccount && matchesAmount && matchesDate && matchesLoanStatus;
+  }), [transactionsForCurrentTag, normalizedSearch, amountSearchQuery, accountById, filter, tagFilter, categoryFilter, loanStatusFilter, accountFilter, minimumAmountValue, maximumAmountValue, dateFrom, dateTo, invalidDateRange]);
 
   const filteredTransfers = useMemo(() => (transfers || []).filter((item) => {
+    const amount = Number(item.amount) || 0;
+    const matchesAmountSearch = !!amountSearchQuery && [String(amount), formatMoney(amount)]
+      .some((value) => value.replace(/,/g, "").includes(amountSearchQuery));
+    const txDate = format(new Date(item.date), "yyyy-MM-dd");
     const matchesSearch = !normalizedSearch || item.note?.toLowerCase().includes(normalizedSearch)
       || (accountById.get(item.fromAccountId) ?? "Unknown account").toLowerCase().includes(normalizedSearch)
-      || (accountById.get(item.toAccountId) ?? "Unknown account").toLowerCase().includes(normalizedSearch);
+      || (accountById.get(item.toAccountId) ?? "Unknown account").toLowerCase().includes(normalizedSearch)
+      || matchesAmountSearch;
+    const matchesAccount = accountFilter === "all" || item.fromAccountId === Number(accountFilter) || item.toAccountId === Number(accountFilter);
+    const matchesAmount = (minimumAmountValue === null || amount >= minimumAmountValue) && (maximumAmountValue === null || amount <= maximumAmountValue);
+    const matchesDate = !invalidDateRange && (!dateFrom || txDate >= dateFrom) && (!dateTo || txDate <= dateTo);
     return (filter === "all" || filter === "transfer")
       && matchesSearch
+      && matchesAccount
+      && matchesAmount
+      && matchesDate
       && tagFilter === "all"
       && categoryFilter === "all";
-  }), [transfers, normalizedSearch, accountById, filter, tagFilter, categoryFilter]);
+  }), [transfers, normalizedSearch, amountSearchQuery, accountById, filter, tagFilter, categoryFilter, accountFilter, minimumAmountValue, maximumAmountValue, dateFrom, dateTo, invalidDateRange]);
 
   const sortedFilteredTx = useMemo(
     () => ([
       ...filteredTx.map((item): FeedRecord => ({ kind: "transaction", item })),
       ...filteredTransfers.map((item): FeedRecord => ({ kind: "transfer", item })),
-    ]).sort((a, b) => new Date(b.item.date).getTime() - new Date(a.item.date).getTime()),
-    [filteredTx, filteredTransfers]
+    ]).sort((a, b) => {
+      const amountDifference = Number(a.item.amount) - Number(b.item.amount);
+      const dateDifference = new Date(a.item.date).getTime() - new Date(b.item.date).getTime();
+      if (sortOrder === "amount-desc") return amountDifference ? -amountDifference : -dateDifference;
+      if (sortOrder === "amount-asc") return amountDifference || -dateDifference;
+      return sortOrder === "oldest" ? dateDifference : -dateDifference;
+    }),
+    [filteredTx, filteredTransfers, sortOrder]
   );
   const feedItems = useMemo(() => {
     const items: FeedItem[] = [];
     let previousDay = "";
     for (const record of sortedFilteredTx) {
       const dayKey = format(new Date(record.item.date), "yyyy-MM-dd");
-      if (dayKey !== previousDay) {
+      if ((sortOrder === "newest" || sortOrder === "oldest") && dayKey !== previousDay) {
         items.push({ kind: "day", dayKey });
         previousDay = dayKey;
       }
       items.push({ kind: "record", dayKey, record });
     }
     return items;
-  }, [sortedFilteredTx]);
+  }, [sortedFilteredTx, sortOrder]);
   useLayoutEffect(() => {
     const updateScrollMargin = () => {
       const element = feedContainerRef.current;
@@ -237,7 +299,51 @@ export default function TransactionsPage() {
     : categoryById.get(Number(id)) ?? "All categories";
 
   const hasAnyTransactions = (allTransactions || []).length + (allTransfers || []).length > 0;
-  const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || categoryFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
+  const hasAmountFilter = minimumAmount !== "" || maximumAmount !== "";
+  const hasDateFilter = dateFrom !== "" || dateTo !== "";
+  const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || categoryFilter !== "all"
+    || monthFilter !== "all" || accountFilter !== "all" || hasAmountFilter || hasDateFilter
+    || sortOrder !== "newest" || searchTerm.trim().length > 0;
+  const activeFilterCount = [
+    filter !== "all",
+    filter === "loan" && loanStatusFilter !== "all",
+    tagFilter !== "all",
+    categoryFilter !== "all",
+    monthFilter !== "all",
+    accountFilter !== "all",
+    hasAmountFilter,
+    hasDateFilter,
+    sortOrder !== "newest",
+    searchTerm.trim().length > 0,
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSearchInput("");
+    setSearchTerm("");
+    setFilter("all");
+    setLoanStatusFilter("all");
+    setTagFilter("all");
+    setMonthFilter("all");
+    setCategoryFilter("all");
+    setAccountFilter("all");
+    setMinimumAmount("");
+    setMaximumAmount("");
+    setDateFrom("");
+    setDateTo("");
+    setSortOrder("newest");
+  };
+
+  const activeChips: { key: string; label: string; remove: () => void }[] = [];
+  if (filter !== "all") activeChips.push({ key: "type", label: filterTabs.find((tab) => tab.id === filter)?.label ?? filter, remove: () => { setFilter("all"); setLoanStatusFilter("all"); } });
+  if (filter === "loan" && loanStatusFilter !== "all") activeChips.push({ key: "status", label: `Loan: ${loanStatusFilter}`, remove: () => setLoanStatusFilter("all") });
+  if (tagFilter !== "all") activeChips.push({ key: "tag", label: `#${tagFilter}`, remove: () => setTagFilter("all") });
+  if (categoryFilter !== "all") activeChips.push({ key: "category", label: categoryName(categoryFilter), remove: () => setCategoryFilter("all") });
+  if (monthFilter !== "all") activeChips.push({ key: "month", label: `Month ${monthFilter}`, remove: () => setMonthFilter("all") });
+  if (accountFilter !== "all") activeChips.push({ key: "account", label: accountById.get(Number(accountFilter)) ?? "Account", remove: () => setAccountFilter("all") });
+  if (hasAmountFilter) activeChips.push({ key: "amount", label: `Amount ${minimumAmount || "0"}–${maximumAmount || "any"}`, remove: () => { setMinimumAmount(""); setMaximumAmount(""); } });
+  if (hasDateFilter) activeChips.push({ key: "date", label: `Date ${dateFrom || "any"}–${dateTo || "any"}`, remove: () => { setDateFrom(""); setDateTo(""); } });
+  if (sortOrder !== "newest") activeChips.push({ key: "sort", label: `Sort: ${sortOrder === "oldest" ? "Oldest" : sortOrder === "amount-desc" ? "Largest amount" : "Smallest amount"}`, remove: () => setSortOrder("newest") });
+  if (searchTerm.trim()) activeChips.push({ key: "search", label: `Search: ${searchTerm.trim()}`, remove: () => { setSearchInput(""); setSearchTerm(""); } });
 
   const emptyState = getTransactionEmptyState({
     context: "transactions",
@@ -246,14 +352,7 @@ export default function TransactionsPage() {
     onAddTransaction: openNew,
     hasAnyTransactions,
     hasFilters,
-    onClearFilters: () => {
-      setSearchTerm("");
-      setFilter("all");
-      setTagFilter("all");
-      setMonthFilter("all");
-      setLoanStatusFilter("all");
-      setCategoryFilter("all");
-    },
+    onClearFilters: clearFilters,
   });
 
   const virtualItems = feedVirtualizer.getVirtualItems();
@@ -334,6 +433,7 @@ export default function TransactionsPage() {
                       currency={currency}
                       fromAccountName={getAccountName(transfer.fromAccountId)}
                       toAccountName={getAccountName(transfer.toAccountId)}
+                      showFullDate={sortOrder === "amount-desc" || sortOrder === "amount-asc"}
                       onOpen={() => openEditTransfer(transfer)}
                     />
                   </div>
@@ -360,14 +460,21 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-5">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">Transactions</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold">Transactions</h1>
+          {hasFilters && (
+            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="shrink-0 rounded-full text-muted-foreground">
+              <X className="mr-1.5 h-4 w-4" /> Clear filters
+            </Button>
+          )}
+        </div>
         {/* Search + filters row */}
-        <div className="flex flex-col gap-2.5 sm:flex-row">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by category, note, counterparty, tag…"
-              className="rounded-2xl border-border/60 bg-card/70 pl-9 pr-10"
+              placeholder="Search category, note, account, tag, or amount"
+              className="h-11 rounded-2xl border-border/60 bg-card/70 pl-9 pr-10"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               aria-label="Search transactions"
@@ -383,38 +490,98 @@ export default function TransactionsPage() {
               </button>
             )}
           </div>
-          <div className="sm:w-48">
-            <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="rounded-2xl border-border/60 bg-card/70" aria-label="Filter by tag">
-                <SelectValue placeholder="Filter by tag" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All tags</SelectItem>
-                {availableTags.map((tag) => (
-                  <SelectItem key={tag} value={tag}>#{tag}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="sm:w-48">
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="rounded-2xl border-border/60 bg-card/70" aria-label="Filter by category">
-                <SelectValue placeholder="Filter by category">{categoryName(categoryFilter)}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="uncategorized">Uncategorized</SelectItem>
-                {(categories || []).map((category) => (
-                  <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {/* Month picker */}
-          <div className="sm:w-48">
-            <MonthPicker value={monthFilter} onChange={setMonthFilter} allowAll className="w-full rounded-2xl" />
-          </div>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button type="button" variant="outline" className="h-11 shrink-0 gap-2 rounded-2xl border-border/60 bg-card/70 px-3 sm:px-4">
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Filters</span>
+                {activeFilterCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">{activeFilterCount}</span>}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              <SheetHeader className="text-left">
+                <SheetTitle>Filters and sorting</SheetTitle>
+                <SheetDescription>Narrow the feed by account, amount, date, or transaction details.</SheetDescription>
+              </SheetHeader>
+              <div className="mt-5 grid grid-cols-1 gap-4 px-1 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="filter-tag">Tag</Label>
+                  <Select value={tagFilter} onValueChange={setTagFilter}>
+                    <SelectTrigger id="filter-tag" className="min-h-11 rounded-xl"><SelectValue placeholder="All tags" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All tags</SelectItem>
+                      {availableTags.map((tag) => <SelectItem key={tag} value={tag}>#{tag}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="filter-category">Category</Label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger id="filter-category" className="min-h-11 rounded-xl"><SelectValue placeholder="All categories">{categoryName(categoryFilter)}</SelectValue></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                      {(categories || []).map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <div role="group" aria-labelledby="filter-month-label" className="space-y-2">
+                    <Label id="filter-month-label">Month</Label>
+                    <MonthPicker ariaLabel="Filter by month" value={monthFilter} onChange={setMonthFilter} allowAll className="min-h-11 w-full rounded-xl" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="filter-account">Account</Label>
+                  <Select value={accountFilter} onValueChange={setAccountFilter}>
+                    <SelectTrigger id="filter-account" className="min-h-11 rounded-xl"><SelectValue placeholder="All accounts" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All accounts</SelectItem>
+                      {(accounts || []).map((account) => <SelectItem key={account.id} value={String(account.id)}>{account.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <fieldset className="space-y-2 sm:col-span-2">
+                  <legend className="text-sm font-medium">Amount range</legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5"><Label htmlFor="filter-min-amount" className="text-xs text-muted-foreground">Minimum</Label><Input id="filter-min-amount" type="number" inputMode="decimal" min="0" step="0.01" value={minimumAmount} onChange={(event) => setMinimumAmount(event.target.value)} placeholder="No minimum" className="min-h-11 rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label htmlFor="filter-max-amount" className="text-xs text-muted-foreground">Maximum</Label><Input id="filter-max-amount" type="number" inputMode="decimal" min="0" step="0.01" value={maximumAmount} onChange={(event) => setMaximumAmount(event.target.value)} placeholder="No maximum" className="min-h-11 rounded-xl" /></div>
+                  </div>
+                  {invalidAmountRange && <p className="text-xs text-destructive" role="alert">Minimum amount must not exceed maximum.</p>}
+                </fieldset>
+                <fieldset className="space-y-2 sm:col-span-2">
+                  <legend className="text-sm font-medium">Date range</legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5"><Label htmlFor="filter-date-from" className="text-xs text-muted-foreground">From</Label><Input id="filter-date-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="min-h-11 rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label htmlFor="filter-date-to" className="text-xs text-muted-foreground">To</Label><Input id="filter-date-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="min-h-11 rounded-xl" /></div>
+                  </div>
+                  {invalidDateRange && <p className="text-xs text-destructive" role="alert">Start date must not be after end date.</p>}
+                </fieldset>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="filter-sort">Sort by</Label>
+                  <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+                    <SelectTrigger id="filter-sort" className="min-h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                      <SelectItem value="amount-desc">Largest amount</SelectItem>
+                      <SelectItem value="amount-asc">Smallest amount</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
+        {activeChips.length > 0 && (
+          <div role="group" className="flex flex-wrap gap-2" aria-label="Active filters">
+            {activeChips.map((chip) => (
+              <button key={chip.key} type="button" onClick={chip.remove} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-primary/10" aria-label={`Remove ${chip.label} filter`}>
+                <span className="max-w-[14rem] truncate">{chip.label}</span><X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Type filter tabs */}

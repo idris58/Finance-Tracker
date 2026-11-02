@@ -13,6 +13,7 @@ interface MonthPickerProps {
   align?: "start" | "center" | "end";
   variant?: "outline" | "ghost" | "secondary" | "default";
   formatStyle?: "auto" | "full" | "short";
+  ariaLabel?: string;
 }
 
 export function MonthPicker({
@@ -23,6 +24,7 @@ export function MonthPicker({
   align = "start",
   variant = "outline",
   formatStyle = "auto",
+  ariaLabel,
 }: MonthPickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -88,6 +90,7 @@ export function MonthPicker({
         <Button
           variant={variant}
           size="sm"
+          aria-label={ariaLabel}
           className={cn(
             "group flex items-center gap-1.5 h-8.5 rounded-full border border-border/60 bg-background/70 hover:bg-background/95 hover:border-primary/40 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-foreground/90 hover:text-foreground shadow-xs backdrop-blur-md transition-all duration-200",
             className

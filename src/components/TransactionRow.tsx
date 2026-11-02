@@ -76,13 +76,15 @@ export function TransactionRow({
     ? `${format(new Date(tx.date), "p")} · ${accountName ?? "Unknown account"}`
     : `${format(new Date(tx.date), "MMM d, yyyy")} · ${accountName ?? "Unknown account"}`;
 
+  const canSettle = !!onSettle && isLoan && tx.loanStatus !== "settled" && tx.id !== undefined;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
+    <div className="flex items-stretch overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
       <button
         type="button"
         onClick={onOpen}
         className={cn(
-          "flex w-full items-start justify-between p-4 text-left",
+          "flex min-w-0 flex-1 items-start justify-between p-3 text-left sm:p-4",
           variant === "home" && "items-center rounded-2xl hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         )}
         aria-label={`${label}, ${positive ? "+" : "-"}${currency}${formatMoney(amount)}, ${format(new Date(tx.date), "MMM d, yyyy")}`}
@@ -120,16 +122,16 @@ export function TransactionRow({
           {variant === "transactions" && <p className="text-xs text-muted-foreground">{format(new Date(tx.date), "p")}</p>}
         </div>
       </button>
-      {onSettle && isLoan && tx.loanStatus !== "settled" && tx.id !== undefined && (
-        <div className="border-t border-border/40 px-4 pb-3 pt-2">
+      {canSettle && (
+        <div className="flex shrink-0 items-center pr-2 sm:pr-3">
           <button
             type="button"
-            onClick={onSettle}
-            className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={onSettle!}
+            className="flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-primary/10 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:h-auto sm:w-auto sm:px-3 sm:py-2"
             aria-label={`Record a payment for loan from ${tx.counterparty ?? "counterparty"}`}
           >
-            <Zap className="h-3 w-3" />
-            {variant === "home" ? <span className="hidden sm:inline">Settle</span> : "Record payment"}
+            <Zap className="h-4 w-4 sm:h-3 sm:w-3" aria-hidden="true" />
+            <span className="hidden sm:inline">{variant === "home" ? "Settle" : "Record payment"}</span>
           </button>
         </div>
       )}
@@ -143,13 +145,16 @@ export function TransferFeedRow({
   fromAccountName,
   toAccountName,
   onOpen,
+  showFullDate = false,
 }: {
   transfer: Transfer;
   currency: string;
   fromAccountName: string;
   toAccountName: string;
   onOpen: () => void;
+  showFullDate?: boolean;
 }) {
+  const transferDateFormat = showFullDate ? "MMM d, yyyy · p" : "p";
   return (
     <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
       <button
@@ -172,10 +177,10 @@ export function TransferFeedRow({
           </div>
         </div>
         <div className="flex w-full items-center justify-between gap-2 pl-14 sm:w-auto sm:shrink-0 sm:pl-0">
-          <span className="text-xs text-muted-foreground sm:hidden">{format(new Date(transfer.date), "p")}</span>
+          <span className="text-xs text-muted-foreground sm:hidden">{format(new Date(transfer.date), transferDateFormat)}</span>
           <div className="text-right">
             <p className="font-semibold text-foreground">{currency}{formatMoney(Number(transfer.amount))}</p>
-            <p className="hidden text-xs text-muted-foreground sm:block">{format(new Date(transfer.date), "p")}</p>
+            <p className="hidden text-xs text-muted-foreground sm:block">{format(new Date(transfer.date), transferDateFormat)}</p>
           </div>
         </div>
       </button>
