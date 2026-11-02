@@ -12,6 +12,8 @@ import {
   Wallet,
   Scale,
   ArrowLeftRight,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
@@ -25,6 +27,7 @@ import {
   useUpdateAccount,
 } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,6 +96,7 @@ export default function AccountDetailPage() {
   const { data: categories } = useCategories();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
   const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
+  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const currency = useCurrency();
   const { openEdit: openEditTransaction, openEditTransfer } = useTransactionEditor();
 
@@ -322,12 +326,19 @@ export default function AccountDetailPage() {
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Current balance</p>
-            <h2 className="text-3xl font-semibold">
-              <SensitiveValue>
-                {currency}
-                {formatMoney(currentBalance)}
-              </SensitiveValue>
-            </h2>
+            <div className="mt-1 flex items-center gap-3">
+              <h2 className="text-3xl font-semibold">
+                <SensitiveValue>{currency}{formatMoney(currentBalance)}</SensitiveValue>
+              </h2>
+              <button
+                type="button"
+                onClick={toggleHideBalance}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-background/60 text-muted-foreground transition-colors hover:bg-background/90 hover:text-foreground"
+                aria-label={hideBalance ? "Show balance" : "Hide balance"}
+              >
+                {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </div>
         <Button
