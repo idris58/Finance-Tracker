@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useLayoutEffect, useRef } from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAccounts, useCategories, useTransactions, useTransfers } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
@@ -25,8 +25,6 @@ import type { Transaction, Transfer } from "@shared/schema";
 
 const filterTabs = TRANSACTION_FILTER_TYPES;
 
-const PAGE_SIZE = 30;
-
 const loanStatusTabs = [
   { id: "all", label: "All" },
   { id: "open", label: "Open" },
@@ -36,6 +34,8 @@ const loanStatusTabs = [
 
 type FilterType = (typeof filterTabs)[number]["id"];
 type LoanStatusFilter = (typeof loanStatusTabs)[number]["id"];
+type FeedRecord = { kind: "transaction"; item: Transaction } | { kind: "transfer"; item: Transfer };
+type FeedItem = { kind: "day"; dayKey: string } | { kind: "record"; dayKey: string; record: FeedRecord };
 
 export default function TransactionsPage() {
   const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
@@ -43,11 +43,8 @@ export default function TransactionsPage() {
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [filter, monthFilter, tagFilter, categoryFilter, loanStatusFilter, searchTerm]);
+  const feedContainerRef = useRef<HTMLDivElement>(null);
+  const [feedScrollMargin, setFeedScrollMargin] = useState(0);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
 
   
@@ -161,7 +158,6 @@ export default function TransactionsPage() {
       && categoryFilter === "all";
   });
 
-  type FeedRecord = { kind: "transaction"; item: Transaction } | { kind: "transfer"; item: Transfer };
   const sortedFilteredTx = useMemo(
     () => ([
       ...filteredTx.map((item): FeedRecord => ({ kind: "transaction", item })),
@@ -169,17 +165,42 @@ export default function TransactionsPage() {
     ]).sort((a, b) => new Date(b.item.date).getTime() - new Date(a.item.date).getTime()),
     [filteredTx, filteredTransfers]
   );
-  const visibleTx = useMemo(
-    () => sortedFilteredTx.slice(0, visibleCount),
-    [sortedFilteredTx, visibleCount]
-  );
-  const groupedTx = useMemo(() => {
-    return visibleTx.reduce<Record<string, typeof visibleTx>>((groups, record) => {
-      const key = format(new Date(record.item.date), "yyyy-MM-dd");
-      (groups[key] ??= []).push(record);
-      return groups;
-    }, {});
-  }, [visibleTx]);
+  const feedItems = useMemo(() => {
+    const items: FeedItem[] = [];
+    let previousDay = "";
+    for (const record of sortedFilteredTx) {
+      const dayKey = format(new Date(record.item.date), "yyyy-MM-dd");
+      if (dayKey !== previousDay) {
+        items.push({ kind: "day", dayKey });
+        previousDay = dayKey;
+      }
+      items.push({ kind: "record", dayKey, record });
+    }
+    return items;
+  }, [sortedFilteredTx]);
+  useLayoutEffect(() => {
+    const updateScrollMargin = () => {
+      const element = feedContainerRef.current;
+      if (element) setFeedScrollMargin(element.getBoundingClientRect().top + window.scrollY);
+    };
+    updateScrollMargin();
+    window.addEventListener("resize", updateScrollMargin);
+    return () => window.removeEventListener("resize", updateScrollMargin);
+  }, [filter, sortedFilteredTx.length]);
+  const feedVirtualizer = useWindowVirtualizer({
+    count: feedItems.length,
+    estimateSize: (index) => feedItems[index]?.kind === "day" ? 42 : feedItems[index]?.record.kind === "transfer" ? 112 : 168,
+    getItemKey: (index) => {
+      const item = feedItems[index];
+      if (!item) return index;
+      if (item.kind === "day") return `day-${item.dayKey}`;
+      return item.record.kind === "transaction"
+        ? `transaction-${item.record.item.id}`
+        : `transfer-${item.record.item.id}`;
+    },
+    overscan: 8,
+    scrollMargin: feedScrollMargin,
+  });
   const summary = useMemo(() => {
     return sortedFilteredTx.reduce((totals, tx) => {
       if (tx.kind !== "transaction") {
@@ -216,6 +237,19 @@ export default function TransactionsPage() {
     },
   });
 
+  const virtualItems = feedVirtualizer.getVirtualItems();
+  const firstVisibleVirtualItem = virtualItems.find((item) => item.end >= (feedVirtualizer.scrollOffset ?? 0));
+  const firstVirtualIndex = firstVisibleVirtualItem?.index ?? virtualItems[0]?.index ?? 0;
+  let stickyDayKey: string | null = null;
+  for (let index = firstVirtualIndex; index >= 0; index--) {
+    const candidate = feedItems[index];
+    if (candidate?.kind === "day") {
+      stickyDayKey = candidate.dayKey;
+      break;
+    }
+  }
+  const stickyDate = stickyDayKey ? new Date(`${stickyDayKey}T12:00:00`) : null;
+
   const transactionResults = (
       <div className="space-y-4">
         {(isLoading || isLoadingTransfers) && <p className="text-sm text-muted-foreground">Loading…</p>}
@@ -235,59 +269,69 @@ export default function TransactionsPage() {
             )}
           </div>
         )}
-        {Object.entries(groupedTx).map(([dayKey, dayItems]) => (
-          <section key={dayKey}>
-            <h2 className="sticky top-0 z-10 -mx-1 mb-2 bg-background/95 px-1 py-2 text-sm font-semibold text-muted-foreground backdrop-blur">
-              {isToday(new Date(`${dayKey}T12:00:00`)) ? "Today" : isYesterday(new Date(`${dayKey}T12:00:00`)) ? "Yesterday" : format(new Date(`${dayKey}T12:00:00`), "EEEE, MMM d, yyyy")}
-            </h2>
-            <div className="space-y-2.5">
-        {dayItems.map((record) => record.kind === "transaction" ? (
-          <TransactionRow
-            key={`transaction-${record.item.id}`}
-            transaction={record.item}
-            currency={currency}
-            variant="transactions"
-            accountName={getAccountName(record.item.accountId)}
-            onOpen={() => record.item.id && openEdit(record.item)}
-            onSettle={() => { setSettlementTxId(record.item.id ?? null); setSettlementOpen(true); }}
-          />
-        ) : (
-          <TransferFeedRow
-            key={`transfer-${record.item.id}`}
-            transfer={record.item}
-            currency={currency}
-            fromAccountName={getAccountName(record.item.fromAccountId)}
-            toAccountName={getAccountName(record.item.toAccountId)}
-            onOpen={() => openEditTransfer(record.item)}
-          />
-        ))}
-            </div>
-          </section>
-        ))}
-
-        {visibleCount < sortedFilteredTx.length && (
-          <div className="flex flex-col items-center justify-center gap-2 pt-2 pb-4">
-            <p className="text-xs text-muted-foreground">
-              Showing {visibleTx.length} of {sortedFilteredTx.length} transactions
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="rounded-full px-6"
-                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-              >
-                Load more
-              </Button>
-              {sortedFilteredTx.length - visibleTx.length > PAGE_SIZE && (
-                <Button
-                  variant="ghost"
-                  className="rounded-full text-xs text-muted-foreground"
-                  onClick={() => setVisibleCount(sortedFilteredTx.length)}
+        {sortedFilteredTx.length > 0 && (
+          <div
+            ref={feedContainerRef}
+            className="relative w-full"
+            style={{ height: `${Math.max(0, feedVirtualizer.getTotalSize() - feedScrollMargin)}px` }}
+          >
+            {stickyDate && (
+              <div className="sticky top-0 z-10 h-0">
+                <h2 className="-mx-1 bg-background/95 px-1 py-2 text-sm font-semibold text-muted-foreground backdrop-blur">
+                  {isToday(stickyDate) ? "Today" : isYesterday(stickyDate) ? "Yesterday" : format(stickyDate, "EEEE, MMM d, yyyy")}
+                </h2>
+              </div>
+            )}
+            {feedVirtualizer.getVirtualItems().map((virtualItem) => {
+              const item = feedItems[virtualItem.index];
+              if (!item) return null;
+              let content;
+              if (item.kind === "day") {
+                content = (
+                  <h2 className="-mx-1 mb-2 bg-background/95 px-1 py-2 text-sm font-semibold text-muted-foreground">
+                    {isToday(new Date(`${item.dayKey}T12:00:00`)) ? "Today" : isYesterday(new Date(`${item.dayKey}T12:00:00`)) ? "Yesterday" : format(new Date(`${item.dayKey}T12:00:00`), "EEEE, MMM d, yyyy")}
+                  </h2>
+                );
+              } else if (item.record.kind === "transaction") {
+                const transaction = item.record.item;
+                content = (
+                  <div className="pb-2.5">
+                    <TransactionRow
+                      transaction={transaction}
+                      currency={currency}
+                      variant="transactions"
+                      accountName={getAccountName(transaction.accountId)}
+                      onOpen={() => transaction.id && openEdit(transaction)}
+                      onSettle={() => { setSettlementTxId(transaction.id ?? null); setSettlementOpen(true); }}
+                    />
+                  </div>
+                );
+              } else {
+                const transfer = item.record.item;
+                content = (
+                  <div className="pb-2.5">
+                    <TransferFeedRow
+                      transfer={transfer}
+                      currency={currency}
+                      fromAccountName={getAccountName(transfer.fromAccountId)}
+                      toAccountName={getAccountName(transfer.toAccountId)}
+                      onOpen={() => openEditTransfer(transfer)}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={feedVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualItem.start - feedScrollMargin}px)` }}
                 >
-                  Load all ({sortedFilteredTx.length})
-                </Button>
-              )}
-            </div>
+                  {content}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
