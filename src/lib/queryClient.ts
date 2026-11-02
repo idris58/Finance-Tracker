@@ -13,3 +13,14 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+const DATABASE_CHANGE_CHANNEL = "finance-tracker:database-change";
+
+if (typeof BroadcastChannel !== "undefined") {
+  const databaseChangeChannel = new BroadcastChannel(DATABASE_CHANGE_CHANNEL);
+  databaseChangeChannel.addEventListener("message", (event: MessageEvent) => {
+    if (event.data?.type === "invalidate-queries") {
+      void queryClient.invalidateQueries();
+    }
+  });
+}

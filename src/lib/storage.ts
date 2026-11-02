@@ -3,6 +3,15 @@ import { db, initializeDatabase } from './db';
 import { roundMoney, toMoneyString } from './money';
 import type { Settings, Category, Transaction, Account, Transfer, ImportSnapshot, LoanSettlement } from '@shared/schema';
 
+const DATABASE_CHANGE_CHANNEL = 'finance-tracker:database-change';
+
+function notifyDatabaseChanged(): void {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const channel = new BroadcastChannel(DATABASE_CHANGE_CHANNEL);
+  channel.postMessage({ type: 'invalidate-queries' });
+  channel.close();
+}
+
 export interface IStorage {
   // Settings
   getSettings(): Promise<Settings>;
@@ -111,7 +120,7 @@ export class LocalStorage implements IStorage {
   }
 
   async updateSettings(updates: Partial<Omit<Settings, 'id' | 'updatedAt'>>): Promise<Settings> {
-    return await db.transaction('rw', [db.settings], async () => {
+    const result = await db.transaction('rw', [db.settings], async () => {
       const existing = await this.getSettings();
       if (!existing.id) {
         throw new Error('Settings not found');
@@ -129,6 +138,8 @@ export class LocalStorage implements IStorage {
       }
       return result;
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async getCategories(): Promise<Category[]> {
@@ -191,7 +202,7 @@ export class LocalStorage implements IStorage {
   }
 
   async createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
-    return await db.transaction('rw', [db.categories, db.accounts, db.transactions], async () => {
+    const result = await db.transaction('rw', [db.categories, db.accounts, db.transactions], async () => {
       if (!transaction.accountId || !(await db.accounts.get(transaction.accountId))) {
         throw new Error('Select a valid account before saving the transaction.');
       }
@@ -246,10 +257,12 @@ export class LocalStorage implements IStorage {
         })) : [],
       };
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async updateTransaction(id: number, updates: Partial<Omit<Transaction, 'id'>>): Promise<Transaction> {
-    return await db.transaction('rw', [db.categories, db.accounts, db.transactions], async () => {
+    const result = await db.transaction('rw', [db.categories, db.accounts, db.transactions], async () => {
       const existing = await db.transactions.get(id);
       if (!existing) {
         throw new Error('Transaction not found');
@@ -356,6 +369,8 @@ export class LocalStorage implements IStorage {
         })) : [],
       };
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async deleteTransaction(id: number): Promise<void> {
@@ -387,10 +402,11 @@ export class LocalStorage implements IStorage {
 
       await db.transactions.delete(id);
     });
+    notifyDatabaseChanged();
   }
 
   async addLoanSettlement(transactionId: number, settlement: LoanSettlement): Promise<Transaction> {
-    return await db.transaction('rw', [db.accounts, db.transactions], async () => {
+    const result = await db.transaction('rw', [db.accounts, db.transactions], async () => {
       const existing = await db.transactions.get(transactionId);
       if (!existing) throw new Error('Transaction not found');
       if (existing.type !== 'loan') throw new Error('Not a loan transaction');
@@ -436,10 +452,12 @@ export class LocalStorage implements IStorage {
         })),
       };
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async deleteLoanSettlement(transactionId: number, settlementId: string): Promise<Transaction> {
-    return await db.transaction('rw', [db.accounts, db.transactions], async () => {
+    const result = await db.transaction('rw', [db.accounts, db.transactions], async () => {
       const existing = await db.transactions.get(transactionId);
       if (!existing) throw new Error('Transaction not found');
 
@@ -474,6 +492,8 @@ export class LocalStorage implements IStorage {
         })),
       };
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async getAccounts(): Promise<Account[]> {
@@ -485,7 +505,7 @@ export class LocalStorage implements IStorage {
   }
 
   async createAccount(account: Omit<Account, 'id'>): Promise<Account> {
-    return await db.transaction('rw', [db.accounts], async () => {
+    const result = await db.transaction('rw', [db.accounts], async () => {
       const name = account.name.trim();
       await this.assertAccountNameAvailable(name);
       const id = await db.accounts.add({ ...account, name, balance: toMoneyString(Number(account.balance || 0)) });
@@ -493,10 +513,12 @@ export class LocalStorage implements IStorage {
       if (!created) throw new Error('Failed to create account');
       return created;
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   async updateAccount(id: number, updates: Partial<Omit<Account, 'id'>>): Promise<Account> {
-    return await db.transaction('rw', [db.accounts], async () => {
+    const result = await db.transaction('rw', [db.accounts], async () => {
       const existing = await db.accounts.get(id);
       if (!existing) throw new Error('Account not found');
       const name = updates.name?.trim();
@@ -511,6 +533,8 @@ export class LocalStorage implements IStorage {
       if (!updated) throw new Error('Account not found');
       return updated;
     });
+    notifyDatabaseChanged();
+    return result;
   }
 
   private async assertAccountNameAvailable(name: string, exceptId?: number): Promise<void> {
@@ -523,7 +547,7 @@ export class LocalStorage implements IStorage {
   }
 
   async deleteAccount(id: number): Promise<void> {
-    return await db.transaction('rw', [db.accounts, db.transactions, db.transfers], async () => {
+    await db.transaction('rw', [db.accounts, db.transactions, db.transfers], async () => {
       const account = await db.accounts.get(id);
       if (!account) {
         throw new Error('Account not found');
@@ -539,10 +563,11 @@ export class LocalStorage implements IStorage {
       }
       await db.accounts.delete(id);
     });
+    notifyDatabaseChanged();
   }
 
   async transferBetweenAccounts(params: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date?: Date }): Promise<void> {
-    return await db.transaction('rw', [db.accounts, db.transfers], async () => {
+    await db.transaction('rw', [db.accounts, db.transfers], async () => {
       const { fromAccountId, toAccountId, amount, note } = params;
       if (fromAccountId === toAccountId) {
         throw new Error('Transfer accounts must be different');
@@ -578,6 +603,7 @@ export class LocalStorage implements IStorage {
         date: transferDate,
       });
     });
+    notifyDatabaseChanged();
   }
 
   async updateTransfer(id: number, updates: { fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }): Promise<void> {
@@ -615,6 +641,7 @@ export class LocalStorage implements IStorage {
         date: updates.date instanceof Date ? updates.date : new Date(updates.date),
       });
     });
+    notifyDatabaseChanged();
   }
 
   async deleteTransfer(id: number): Promise<void> {
@@ -627,6 +654,7 @@ export class LocalStorage implements IStorage {
       if (to) await db.accounts.update(to.id!, { balance: toMoneyString(roundMoney(Number(to.balance || 0) - Number(transfer.amount))) });
       await db.transfers.delete(id);
     });
+    notifyDatabaseChanged();
   }
 
   async getTransfers(limit?: number): Promise<{ id?: number; fromAccountId: number; toAccountId: number; amount: string; note?: string | null; date: Date }[]> {
@@ -864,6 +892,7 @@ export class LocalStorage implements IStorage {
         }
       }
     });
+    notifyDatabaseChanged();
   }
 
   async restoreLastImportSnapshot(): Promise<void> {
@@ -884,6 +913,7 @@ export class LocalStorage implements IStorage {
       if (snapshot.transfers.length) await db.transfers.bulkPut(snapshot.transfers);
       await db.importSnapshots.delete(snapshot.id!);
     });
+    notifyDatabaseChanged();
   }
 
   async resetAllData(): Promise<void> {
@@ -895,6 +925,7 @@ export class LocalStorage implements IStorage {
     await db.importSnapshots.clear();
 
     await initializeDatabase();
+    notifyDatabaseChanged();
   }
 }
 
