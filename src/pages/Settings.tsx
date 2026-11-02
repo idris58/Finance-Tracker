@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Sun, Unlink2, Upload, X } from "lucide-react";
+import { Cloud, Database, Download, History, Link2, Monitor, Moon, RefreshCw, ShieldAlert, ShieldCheck, Sun, Unlink2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCloudBackupNow, useCloudBackupStatus, useCloudBackupList, useCloudDisconnect, useCloudRestoreLatest, useCloudRestoreByFile, useDirectCloudConnect, useEnsureCloudDriveToken, useExportData, useImportData, usePreloadCloudBackupAuth, useSettings, useStoragePersistence, useUpdateSettings } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const currencies = [
   { symbol: "৳", label: "BDT (৳)" },
@@ -38,6 +40,7 @@ export default function SettingsPage() {
   const [pickerSelectedId, setPickerSelectedId] = useState<string | null>(null);
   const cloudBackupList = useCloudBackupList();
   const cloudRestoreByFile = useCloudRestoreByFile();
+  useHistoryBackDismiss(showRestorePicker, () => setShowRestorePicker(false));
 
   const handleCurrencyChange = (value: string) => {
     updateSettings.mutate({ currencySymbol: value });
@@ -358,36 +361,14 @@ export default function SettingsPage() {
     </div>
 
     {/* ── Restore version picker modal ── */}
-    {showRestorePicker && (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-        aria-modal="true"
-        role="dialog"
-        aria-label="Pick a cloud backup version to restore"
-      >
-        {/* Backdrop */}
-        <div
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-          onClick={() => setShowRestorePicker(false)}
-        />
+    <Dialog open={showRestorePicker} onOpenChange={setShowRestorePicker}>
+      <DialogContent className="max-w-md gap-0 overflow-hidden rounded-3xl border-border/60 bg-card p-0 shadow-2xl">
+        <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
+          <DialogTitle className="text-base">Choose backup version</DialogTitle>
+          <DialogDescription className="mt-0.5 text-xs">Up to 5 versions kept. Pick any to restore.</DialogDescription>
+        </DialogHeader>
 
-        {/* Panel */}
-        <div className="relative z-10 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-border/60 bg-card shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-            <div>
-              <h2 className="text-base font-semibold">Choose backup version</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Up to 5 versions kept. Pick any to restore.</p>
-            </div>
-            <button
-              onClick={() => setShowRestorePicker(false)}
-              className="rounded-xl p-1.5 hover:bg-muted transition-colors"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="max-h-72 overflow-y-auto px-3 py-3 space-y-2">
+          <div className="max-h-[min(18rem,45vh)] space-y-2 overflow-y-auto px-3 py-3">
             {cloudBackupList.isFetching && (
               <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground text-sm">
                 <RefreshCw className="h-4 w-4 animate-spin" /> Loading backups…
@@ -437,7 +418,7 @@ export default function SettingsPage() {
             })}
           </div>
 
-          <div className="border-t border-border/60 px-4 py-3 flex gap-3">
+          <DialogFooter className="flex-row gap-3 border-t border-border/60 px-4 py-3">
             <Button
               variant="outline"
               className="flex-1 rounded-2xl"
@@ -485,10 +466,9 @@ export default function SettingsPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </div>
-        </div>
-      </div>
-    )}
+          </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
