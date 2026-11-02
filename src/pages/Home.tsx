@@ -1,10 +1,9 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
-import { Eye, EyeOff, CalendarIcon, ChevronLeft, ChevronRight, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAccounts, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { useAppState } from "@/context/AppStateContext";
 import { cn } from "@/lib/utils";
@@ -16,7 +15,6 @@ import { BalanceCard } from "@/components/BalanceCard";
 import { LoanProgress } from "@/components/LoanProgress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getLoanProgress } from "@/lib/loans";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
@@ -29,7 +27,6 @@ export default function HomePage() {
   const [activeType, setActiveType] = useState<TransactionType>("expense");
   const { monthDate, setMonthDate } = useAppState();
   
-  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   useHistoryBackDismiss(settlementOpen, () => setSettlementOpen(false));
@@ -72,15 +69,22 @@ export default function HomePage() {
     return txs.filter((tx) => (tx.type || "expense") === activeType);
   }, [transactions, activeType]);
 
+  const recentTransactions = useMemo(
+    () => [...filteredTransactions]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10),
+    [filteredTransactions]
+  );
+
   const grouped = useMemo(() => {
-    const groups: Record<string, typeof filteredTransactions> = {};
-    filteredTransactions.forEach((tx) => {
+    const groups: Record<string, typeof recentTransactions> = {};
+    recentTransactions.forEach((tx) => {
       const key = format(new Date(tx.date), "EEE, d MMM");
       if (!groups[key]) groups[key] = [];
       groups[key].push(tx);
     });
     return groups;
-  }, [filteredTransactions]);
+  }, [recentTransactions]);
 
   const carriedLoans = useMemo(() => {
     const monthStart = startOfMonth(monthDate);
@@ -116,6 +120,23 @@ export default function HomePage() {
       />
 
       <TransactionTypeTabs value={activeType} onValueChange={setActiveType} />
+
+      <div className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Monthly income, expense, and net totals">
+        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/80 p-3 sm:rounded-3xl sm:p-4">
+          <p className="truncate text-[11px] text-muted-foreground sm:text-sm">Income</p>
+          <p className="mt-1 truncate text-sm font-semibold text-emerald-600 sm:text-lg">{currency}{formatMoney(totals.totalIncome)}</p>
+        </div>
+        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/80 p-3 sm:rounded-3xl sm:p-4">
+          <p className="truncate text-[11px] text-muted-foreground sm:text-sm">Expense</p>
+          <p className="mt-1 truncate text-sm font-semibold text-rose-600 sm:text-lg">{currency}{formatMoney(totals.totalExpense)}</p>
+        </div>
+        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/80 p-3 sm:rounded-3xl sm:p-4">
+          <p className="truncate text-[11px] text-muted-foreground sm:text-sm">Net</p>
+          <p className={cn("mt-1 truncate text-sm font-semibold sm:text-lg", totals.totalIncome - totals.totalExpense >= 0 ? "text-emerald-600" : "text-rose-600")}>
+            {currency}{formatMoney(roundMoney(totals.totalIncome - totals.totalExpense))}
+          </p>
+        </div>
+      </div>
 
       {activeType === "expense" && (
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
@@ -238,7 +259,6 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <span>
-                      {currency}
                       {currency}{formatMoney(items.reduce((sum, tx) => sum + Number(tx.amount), 0))}
                     </span>
                   )}
