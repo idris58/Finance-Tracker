@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight, Search, X, Zap } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
@@ -10,25 +10,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
-import { getCategoryIcon } from "@/lib/category-icons";
 import { EmptyState } from "@/components/EmptyState";
 import { MonthPicker } from "@/components/MonthPicker";
-import { LoanProgress } from "@/components/LoanProgress";
-import { StatusBadge } from "@/components/StatusBadge";
-import { getLoanProgress } from "@/lib/loans";
+import { TransactionRow } from "@/components/TransactionRow";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { useAppState } from "@/context/AppStateContext";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
-import type { Transaction } from "@shared/schema";
+import { TRANSACTION_FILTER_TYPES } from "@/components/TransactionTypeTabs";
+import { monthKeyToDate } from "@/lib/month";
+import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
 
-const filterTabs = [
-  { id: "all", label: "All" },
-  { id: "expense", label: "Expenses" },
-  { id: "income", label: "Income" },
-  { id: "loan", label: "Loan" },
-] as const;
+const filterTabs = TRANSACTION_FILTER_TYPES;
 
 const PAGE_SIZE = 30;
 
@@ -41,12 +35,6 @@ const loanStatusTabs = [
 
 type FilterType = (typeof filterTabs)[number]["id"];
 type LoanStatusFilter = (typeof loanStatusTabs)[number]["id"];
-
-const monthKeyToDate = (monthKey: string) => {
-  const [year, month] = monthKey.split("-").map(Number);
-  return new Date(year, month - 1, 1);
-};
-
 
 export default function TransactionsPage() {
   const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
@@ -186,41 +174,22 @@ export default function TransactionsPage() {
   const hasAnyTransactions = (allTransactions || []).length > 0;
   const hasFilters = filter !== "all" || loanStatusFilter !== "all" || tagFilter !== "all" || categoryFilter !== "all" || monthFilter !== "all" || searchTerm.trim().length > 0;
 
-  const emptyState = (() => {
-    if (noAccounts) {
-      return {
-        title: "Add an account first",
-        hint: "Create an account before tracking transactions.",
-        primaryActionLabel: "Add account",
-        onPrimaryAction: () => setLocation("/accounts"),
-      };
-    }
-
-    if (hasAnyTransactions && hasFilters) {
-      return {
-        title: "No transactions match",
-        hint: "Try another month or clear filters.",
-        primaryActionLabel: "Clear filters",
-        onPrimaryAction: () => {
-          setSearchTerm("");
-          setFilter("all");
-          setTagFilter("all");
-          setMonthFilter("all");
-          setLoanStatusFilter("all");
-          setCategoryFilter("all");
-        },
-        secondaryActionLabel: "Add transaction",
-        onSecondaryAction: openNew,
-      };
-    }
-
-    return {
-      title: "No transactions yet",
-      hint: "Add your first transaction to start tracking.",
-      primaryActionLabel: "Add transaction",
-      onPrimaryAction: openNew,
-    };
-  })();
+  const emptyState = getTransactionEmptyState({
+    context: "transactions",
+    noAccounts,
+    onAddAccount: () => setLocation("/accounts"),
+    onAddTransaction: openNew,
+    hasAnyTransactions,
+    hasFilters,
+    onClearFilters: () => {
+      setSearchTerm("");
+      setFilter("all");
+      setTagFilter("all");
+      setMonthFilter("all");
+      setLoanStatusFilter("all");
+      setCategoryFilter("all");
+    },
+  });
 
   const transactionResults = (
       <div className="space-y-4">
@@ -240,81 +209,17 @@ export default function TransactionsPage() {
               {isToday(new Date(`${dayKey}T12:00:00`)) ? "Today" : isYesterday(new Date(`${dayKey}T12:00:00`)) ? "Yesterday" : format(new Date(`${dayKey}T12:00:00`), "EEEE, MMM d, yyyy")}
             </h2>
             <div className="space-y-2.5">
-        {dayItems.map((tx) => {
-          const entry = getCategoryIcon(tx.categoryName);
-          const Icon = entry.icon;
-          const accountName = getAccountName(tx.accountId);
-          const isLoan = tx.type === "loan";
-          const isPositive = tx.type === "income" || (isLoan && tx.loanType === "borrow");
-          
-
-          return (
-            <div key={tx.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 transition hover:border-primary/20">
-              <button
-                onClick={() => tx.id && openEdit(tx)}
-                className="flex w-full items-start justify-between p-4 text-left"
-                aria-label={`${tx.categoryName ?? "Transaction"}, ${isPositive ? "+" : "-"}${currency}${formatMoney(Number(tx.amount))}, ${format(new Date(tx.date), "MMM d, yyyy")}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-background">
-                    <Icon className={cn("h-5 w-5", entry.className)} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="font-medium">{tx.categoryName || "Uncategorized"}</p>
-                      {isLoan && tx.loanStatus && (
-                        <StatusBadge status={tx.loanStatus} />
-                      )}
-                      {isLoan && tx.loanType && (
-                        <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
-                          {tx.loanType}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(tx.date), "MMM d, yyyy")} · {accountName}
-                    </p>
-                    {tx.counterparty && (
-                      <p className="text-xs text-muted-foreground/80">{tx.counterparty}</p>
-                    )}
-                    {tx.note && <p className="text-xs text-muted-foreground/70 italic">{tx.note}</p>}
-                    {Array.isArray(tx.tags) && tx.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {tx.tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-secondary/70 px-2 py-0.5 text-[10px] text-muted-foreground">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {isLoan && <LoanProgress tx={tx} currency={currency} />}
-                  </div>
-                </div>
-                <div className="ml-4 shrink-0 text-right">
-                  <p className={cn("font-semibold", isPositive ? "text-emerald-500" : "text-foreground")}>
-                    {isPositive ? "+" : "-"}{currency}{formatMoney(Number(tx.amount))}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{format(new Date(tx.date), "p")}</p>
-                </div>
-              </button>
-
-              {/* Quick settle button for non-settled loans */}
-              {isLoan && tx.loanStatus !== "settled" && tx.id && (
-                <div className="border-t border-border/40 px-4 pb-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
-                    className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-500/20 dark:text-indigo-400"
-                    aria-label={`Record a payment for loan from ${tx.counterparty ?? "counterparty"}`}
-                  >
-                    <Zap className="h-3 w-3" />
-                    Record payment
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {dayItems.map((tx) => (
+          <TransactionRow
+            key={tx.id}
+            transaction={tx}
+            currency={currency}
+            variant="transactions"
+            accountName={getAccountName(tx.accountId)}
+            onOpen={() => tx.id && openEdit(tx)}
+            onSettle={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
+          />
+        ))}
             </div>
           </section>
         ))}

@@ -1,11 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
 import { format, subMonths } from "date-fns";
-import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarIcon, ChevronRight, PieChart as PieIcon, ChevronLeft } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useLocation } from "wouter";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useAppState } from "@/context/AppStateContext";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "@/lib/category-icons";
@@ -16,21 +15,12 @@ import { MonthPicker } from "@/components/MonthPicker";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-
-const typeTabs = [
-  { id: "expense", label: "Expenses" },
-  { id: "income", label: "Income" },
-  { id: "loan", label: "Loan" },
-] as const;
-
-type TxType = (typeof typeTabs)[number]["id"];
+import { BalanceCard } from "@/components/BalanceCard";
+import { TransactionTypeTabs, type TransactionType } from "@/components/TransactionTypeTabs";
+import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
+import { monthKeyToDate } from "@/lib/month";
 
 const palette = ["#f97316", "#f43f5e", "#a855f7", "#38bdf8", "#22c55e", "#facc15", "#14b8a6", "#6366f1"];
-
-const monthKeyToDate = (monthKey: string) => {
-  const [year, month] = monthKey.split("-").map(Number);
-  return new Date(year, month - 1, 1);
-};
 
 const ChartTooltip = ({
   active,
@@ -57,7 +47,7 @@ const ChartTooltip = ({
 };
 
 export default function StatisticsPage() {
-  const [activeType, setActiveType] = useState<TxType>("expense");
+  const [activeType, setActiveType] = useState<TransactionType>("expense");
   const [chartMode, setChartMode] = useState<"bar" | "pie">("bar");
   const { monthDate, setMonthDate } = useAppState();
   const [summaryYear, setSummaryYear] = useState<number>(new Date().getFullYear());
@@ -65,7 +55,6 @@ export default function StatisticsPage() {
   
 
   const monthKey = format(monthDate, "yyyy-MM");
-  const { hideBalance, toggleHideBalance } = useBalancePrivacy();
   const { data: accounts } = useAccounts();
   const { data: categories } = useCategories();
   const { data: allTransactions, isLoading } = useTransactions();
@@ -224,79 +213,38 @@ export default function StatisticsPage() {
     return txs.some((tx) => (tx.type || "expense") === activeType);
   }, [activeType, allTransactions]);
 
-  const chartEmptyState = useMemo(() => {
-    if (noAccounts) {
-      return {
-        title: "Add an account first",
-        hint: "Create an account before viewing transaction insights.",
-        primaryActionLabel: "Add account",
-        onPrimaryAction: () => setLocation("/accounts"),
-      };
-    }
-
-    if (hasAnyTypeTransactions) {
-      return {
-        title: `No ${activeType === "loan" ? "loans" : `${activeType}s`} in ${format(monthDate, "MMMM yyyy")}`,
-        hint: "Try another month or add one now.",
-        primaryActionLabel: "Add transaction",
-        onPrimaryAction: openNew,
-        secondaryActionLabel: "View last month",
-        onSecondaryAction: () => setMonthDate(subMonths(monthDate, 1)),
-      };
-    }
-
-    return {
-      title: `No ${activeType === "loan" ? "loans" : activeType} yet`,
-      hint: "Add transactions to see charts and totals.",
-      primaryActionLabel: "Add transaction",
-      onPrimaryAction: openNew,
-    };
-  }, [activeType, hasAnyTypeTransactions, monthDate, noAccounts, openNew, setLocation]);
-
-  const yearlyEmptyState = useMemo(() => {
-    if (noAccounts) {
-      return {
-        title: "Add an account first",
-        hint: "Create an account to start building yearly balance history.",
-        primaryActionLabel: "Add account",
-        onPrimaryAction: () => setLocation("/accounts"),
-      };
-    }
-
-    return {
-      title: "No yearly data yet",
-      hint: "Your monthly balance summary will appear here after transactions are added.",
-      primaryActionLabel: "Add transaction",
-      onPrimaryAction: openNew,
-    };
-  }, [noAccounts, openNew, setLocation]);
+  const chartEmptyState = getTransactionEmptyState({
+    context: "statistics",
+    noAccounts,
+    onAddAccount: () => setLocation("/accounts"),
+    onAddTransaction: openNew,
+    hasAnyTypeTransactions,
+    activeType,
+    monthDate,
+    onViewPreviousMonth: () => setMonthDate(subMonths(monthDate, 1)),
+  });
+  const yearlyEmptyState = getTransactionEmptyState({
+    context: "yearly",
+    noAccounts,
+    onAddAccount: () => setLocation("/accounts"),
+    onAddTransaction: openNew,
+  });
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/15 via-card/60 to-card/90 p-6">
+      <div>
         <Sheet>
-          <div className="flex items-start gap-2">
-            <SheetTrigger asChild>
-              <button type="button" className="flex-1 text-left">
-              <p className="text-sm text-muted-foreground">Total balance</p>
-              <div className="mt-2 flex items-center gap-2">
-                <h2 className="text-3xl font-semibold">
-                  {hideBalance ? "******" : `${currency}${formatMoney(totalBalance)}`}
-                </h2>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">Tap for details</p>
-              </button>
-            </SheetTrigger>
-            <button
-              type="button"
-              onClick={toggleHideBalance}
-              aria-label={hideBalance ? "Show balance" : "Hide balance"}
-              className="mt-7 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/60 text-muted-foreground"
-            >
-              {hideBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+          <BalanceCard
+            totalBalance={totalBalance}
+            subtitle="Tap for details"
+            action={(
+              <SheetTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="rounded-full text-muted-foreground" aria-label="Open balance details">
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+            )}
+          />
           <SheetContent side="bottom" className="max-h-[80vh] rounded-t-3xl">
             <SheetHeader>
               <SheetTitle>Balance overview</SheetTitle>
@@ -399,22 +347,7 @@ export default function StatisticsPage() {
         </Sheet>
       </div>
 
-      <div className="flex gap-3">
-        {typeTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveType(tab.id)}
-            className={cn(
-              "flex-1 rounded-full border px-4 py-2 text-sm font-semibold transition-all",
-              activeType === tab.id
-                ? "border-primary/40 bg-primary text-primary-foreground"
-                : "border-border/60 bg-card/70 text-muted-foreground"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TransactionTypeTabs value={activeType} onValueChange={setActiveType} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border/60 bg-card/80 p-4">

@@ -21,17 +21,12 @@ import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import type { Transaction } from "@shared/schema";
-
-const typeTabs = [
-  { id: "expense", label: "Expenses" },
-  { id: "income", label: "Income" },
-  { id: "loan", label: "Loan" },
-] as const;
-
-type TxType = (typeof typeTabs)[number]["id"];
+import { TransactionTypeTabs, type TransactionType } from "@/components/TransactionTypeTabs";
+import { getTransactionEmptyState } from "@/lib/transaction-empty-state";
+import { TransactionRow } from "@/components/TransactionRow";
 
 export default function HomePage() {
-  const [activeType, setActiveType] = useState<TxType>("expense");
+  const [activeType, setActiveType] = useState<TransactionType>("expense");
   const { monthDate, setMonthDate } = useAppState();
   
   const { hideBalance, toggleHideBalance } = useBalancePrivacy();
@@ -102,34 +97,16 @@ export default function HomePage() {
     return txs.some((tx) => (tx.type || "expense") === activeType);
   }, [activeType, allTransactions]);
 
-  const emptyState = useMemo(() => {
-    if (noAccounts) {
-      return {
-        title: "Add an account first",
-        hint: "Create Cash, Bank, or Mobile Wallet before adding transactions.",
-        primaryActionLabel: "Add account",
-        onPrimaryAction: () => setLocation("/accounts"),
-      };
-    }
-
-    if (hasAnyTypeTransactions) {
-      return {
-        title: `No ${activeType === "loan" ? "loans" : `${activeType}s`} in ${format(monthDate, "MMMM yyyy")}`,
-        hint: "Try another month or add one now.",
-        primaryActionLabel: "Add transaction",
-        onPrimaryAction: openNew,
-        secondaryActionLabel: "View last month",
-        onSecondaryAction: () => setMonthDate(subMonths(monthDate, 1)),
-      };
-    }
-
-    return {
-      title: `No ${activeType === "loan" ? "loans" : activeType} yet`,
-      hint: `Add your first ${activeType === "loan" ? "loan" : activeType} to get started.`,
-      primaryActionLabel: "Add transaction",
-      onPrimaryAction: openNew,
-    };
-  }, [activeType, hasAnyTypeTransactions, monthDate, noAccounts, openNew, setLocation]);
+  const emptyState = getTransactionEmptyState({
+    context: "home",
+    noAccounts,
+    onAddAccount: () => setLocation("/accounts"),
+    onAddTransaction: openNew,
+    hasAnyTypeTransactions,
+    activeType,
+    monthDate,
+    onViewPreviousMonth: () => setMonthDate(subMonths(monthDate, 1)),
+  });
 
   return (
     <div className="space-y-6">
@@ -138,22 +115,7 @@ export default function HomePage() {
         action={<MonthPicker value={monthDate} onChange={setMonthDate} align="end" />}
       />
 
-      <div className="flex gap-3">
-        {typeTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveType(tab.id)}
-            className={cn(
-              "flex-1 rounded-full border px-4 py-2 text-sm font-semibold transition-all",
-              activeType === tab.id
-                ? "border-primary/40 bg-primary text-primary-foreground shadow-[0_12px_30px_-20px_rgba(244,63,94,0.8)]"
-                : "border-border/60 bg-card/70 text-muted-foreground"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TransactionTypeTabs value={activeType} onValueChange={setActiveType} />
 
       {activeType === "expense" && (
         <div className="rounded-3xl border border-border/60 bg-card/80 p-5">
@@ -282,77 +244,17 @@ export default function HomePage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  {items.map((tx) => {
-                    const entry = getCategoryIcon(tx.categoryName);
-                    const Icon = entry.icon;
-                    const { remaining: txRemaining } = getLoanProgress(tx);
-                    const isUnsettledLoan = tx.type === "loan" && tx.loanStatus !== "settled";
-
-                    return (
-                      <div
-                        key={tx.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => tx.id && openEdit(tx)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            tx.id && openEdit(tx);
-                          }
-                        }}
-                        className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-4 text-left transition hover:border-primary/30 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-background">
-                            <Icon className={cn("h-5 w-5", entry.className)} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium truncate">{tx.categoryName || "Uncategorized"}</p>
-                              {tx.type === "loan" && (
-                                <StatusBadge status={tx.loanStatus} fallbackLabel="Unsettled" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(tx.date), "p")} - {getAccountName(tx.accountId)}
-                            </p>
-                            {tx.type === "loan" && tx.loanStatus === "partial" && (
-                              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                Remaining: {currency}{formatMoney(txRemaining)}
-                              </p>
-                            )}
-                            {tx.counterparty && (
-                              <p className="text-xs text-muted-foreground/80 truncate">{tx.counterparty}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">
-                              {activeType === "income" || (tx.type === "loan" && tx.loanType === "borrow") ? "+" : "-"}
-                              {currency}{formatMoney(Number(tx.amount))}
-                            </p>
-                          </div>
-                          {isUnsettledLoan && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSettlementTxId(tx.id ?? null);
-                                setSettlementOpen(true);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-primary"
-                              title="Settle or record partial payment"
-                              aria-label={`Settle loan ${tx.categoryName || ""}`}
-                            >
-                              <Zap className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Settle</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {items.map((tx) => (
+                    <TransactionRow
+                      key={tx.id}
+                      transaction={tx}
+                      currency={currency}
+                      variant="home"
+                      accountName={getAccountName(tx.accountId)}
+                      onOpen={() => tx.id && openEdit(tx)}
+                      onSettle={() => { setSettlementTxId(tx.id ?? null); setSettlementOpen(true); }}
+                    />
+                  ))}
                 </div>
               </div>
             ))}

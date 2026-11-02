@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { CalendarIcon, CreditCard, Trash2, TrendingDown, TrendingUp, X, Zap } from "lucide-react";
+import { CalendarIcon, CreditCard, Trash2, X, Zap } from "lucide-react";
 import { insertTransactionSchema, type Transaction } from "@shared/schema";
 import { useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { formatMoney } from "@/lib/money";
+import { TransactionTypeTabs, type TransactionType } from "@/components/TransactionTypeTabs";
 
 const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettlementAccountId: true, settlementDate: true }).extend({
   amount: z.string()
@@ -39,29 +40,7 @@ const formSchema = insertTransactionSchema.omit({ loanStatus: true, loanSettleme
 type FormInput = z.input<typeof formSchema>;
 type FormValues = z.output<typeof formSchema>;
 
-type TxType = "expense" | "income" | "loan";
 const LAST_USED_ACCOUNT_KEY = "financeTrackerLastUsedAccountId";
-
-const typeTabs: { id: TxType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "expense", label: "Expense", icon: TrendingDown },
-  { id: "income", label: "Income", icon: TrendingUp },
-  { id: "loan", label: "Loan", icon: CreditCard },
-];
-
-const typeStyles: Record<TxType, { active: string; icon: string }> = {
-  expense: {
-    active: "border-rose-500/40 bg-rose-500 text-white shadow-[0_8px_24px_-12px_rgba(239,68,68,0.7)]",
-    icon: "text-rose-500",
-  },
-  income: {
-    active: "border-emerald-500/40 bg-emerald-500 text-white shadow-[0_8px_24px_-12px_rgba(34,197,94,0.7)]",
-    icon: "text-emerald-500",
-  },
-  loan: {
-    active: "border-indigo-500/40 bg-indigo-500 text-white shadow-[0_8px_24px_-12px_rgba(99,102,241,0.7)]",
-    icon: "text-indigo-500",
-  },
-};
 
 export function TransactionModal({
   open,
@@ -72,7 +51,7 @@ export function TransactionModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
-  initialType?: TxType;
+  initialType?: TransactionType;
 }) {
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
@@ -80,7 +59,7 @@ export function TransactionModal({
   const { data: categories } = useCategories();
   const { data: accounts } = useAccounts();
   const { data: transactions } = useTransactions();
-  const [activeType, setActiveType] = useState<TxType>("expense");
+  const [activeType, setActiveType] = useState<TransactionType>("expense");
   const [isDateOpen, setIsDateOpen] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const [rememberedAccountId, setRememberedAccountId] = useState<number | null>(() => {
@@ -219,7 +198,7 @@ export function TransactionModal({
     return list.filter((cat) => cat.type === activeType);
   }, [categories, activeType]);
 
-  const handleTypeChange = (type: TxType) => {
+  const handleTypeChange = (type: TransactionType) => {
     blurActiveInput();
     setActiveType(type);
     form.setValue("type", type);
@@ -252,30 +231,7 @@ export function TransactionModal({
             className="flex-1 space-y-4 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
             {/* Type Tabs */}
-            <div className="flex gap-2" role="tablist" aria-label="Transaction type">
-              {typeTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeType === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => handleTypeChange(tab.id)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-sm font-semibold transition-all",
-                      isActive
-                        ? typeStyles[tab.id].active
-                        : "border-border/60 bg-card/70 text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+            <TransactionTypeTabs value={activeType} onValueChange={handleTypeChange} variant="modal" />
 
             {/* Amount */}
             <FormField

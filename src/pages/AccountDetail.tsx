@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { formatMoney, roundMoney } from "@/lib/money";
 import { SensitiveValue } from "@/context/AppStateContext";
 import { EmptyState } from "@/components/EmptyState";
+import { TransactionRow } from "@/components/TransactionRow";
 import {
   AreaChart,
   Area,
@@ -413,53 +414,16 @@ export default function AccountDetailPage() {
                   {group.label}
                 </p>
                 {group.items.map((tx) => {
-                  const cat = tx.categoryId
-                    ? categoryMap.get(tx.categoryId)
-                    : null;
-                  const amount = Number(tx.amount);
-                  const isIncome = tx.type === "income";
-                  const isLoanBorrow =
-                    tx.type === "loan" && tx.loanType === "borrow";
-                  const positive = isIncome || isLoanBorrow;
-
+                  const category = tx.categoryId ? categoryMap.get(tx.categoryId) : null;
                   return (
-                    <div
+                    <TransactionRow
                       key={tx.id}
-                      className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-3"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {cat && (
-                          <div
-                            className="h-3 w-3 rounded-full shrink-0"
-                            style={{ backgroundColor: cat.color }}
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {cat?.name || tx.categoryName || "Uncategorized"}
-                          </p>
-                          {tx.note && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {tx.note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-sm font-semibold shrink-0 ml-2",
-                          positive
-                            ? "text-emerald-600"
-                            : "text-rose-600"
-                        )}
-                      >
-                        <SensitiveValue>
-                          {positive ? "+" : "-"}
-                          {currency}
-                          {formatMoney(amount)}
-                        </SensitiveValue>
-                      </span>
-                    </div>
+                      transaction={tx}
+                      currency={currency}
+                      variant="account"
+                      categoryLabel={category?.name}
+                      categoryColor={category?.color}
+                    />
                   );
                 })}
               </div>

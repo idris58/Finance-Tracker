@@ -1,6 +1,27 @@
 import Dexie, { type Table } from 'dexie';
 import type { Account, Category, ImportSnapshot, Settings, Transaction, Transfer, LoanSettlement } from '@shared/schema';
 
+const defaultCategories: Omit<Category, 'id'>[] = [
+  { name: 'Food', color: '#ff8a65', type: 'expense' },
+  { name: 'Transport', color: '#64b5f6', type: 'expense' },
+  { name: 'Shopping', color: '#ba68c8', type: 'expense' },
+  { name: 'Bills', color: '#90a4ae', type: 'expense' },
+  { name: 'Health', color: '#ef5350', type: 'expense' },
+  { name: 'Grocery', color: '#81c784', type: 'expense' },
+  { name: 'Education', color: '#5c6bc0', type: 'expense' },
+  { name: 'Rentals', color: '#ffb74d', type: 'expense' },
+  { name: 'Medical', color: '#ef5350', type: 'expense' },
+  { name: 'Other', color: '#9e9e9e', type: 'expense' },
+  { name: 'Salary', color: '#4db6ac', type: 'income' },
+  { name: 'Business', color: '#9575cd', type: 'income' },
+  { name: 'Investment', color: '#7986cb', type: 'income' },
+  { name: 'Interest', color: '#ffd54f', type: 'income' },
+  { name: 'Extra', color: '#4fc3f7', type: 'income' },
+  { name: 'Other Income', color: '#90a4ae', type: 'income' },
+  { name: 'Borrow', color: '#f06292', type: 'loan', loanType: 'borrow' },
+  { name: 'Lend', color: '#4db6ac', type: 'loan', loanType: 'lend' },
+];
+
 class FinanceDatabase extends Dexie {
   settings!: Table<Settings, number>;
   categories!: Table<Category, number>;
@@ -294,27 +315,6 @@ export async function initializeDatabase() {
 
   const categoriesCount = await db.categories.count();
   if (categoriesCount === 0) {
-    const defaultCategories: Omit<Category, 'id'>[] = [
-      { name: 'Food', color: '#ff8a65', type: 'expense' },
-      { name: 'Transport', color: '#64b5f6', type: 'expense' },
-      { name: 'Shopping', color: '#ba68c8', type: 'expense' },
-      { name: 'Bills', color: '#90a4ae', type: 'expense' },
-      { name: 'Health', color: '#ef5350', type: 'expense' },
-      { name: 'Grocery', color: '#81c784', type: 'expense' },
-      { name: 'Education', color: '#5c6bc0', type: 'expense' },
-      { name: 'Rentals', color: '#ffb74d', type: 'expense' },
-      { name: 'Medical', color: '#ef5350', type: 'expense' },
-      { name: 'Other', color: '#9e9e9e', type: 'expense' },
-      { name: 'Salary', color: '#4db6ac', type: 'income' },
-      { name: 'Business', color: '#9575cd', type: 'income' },
-      { name: 'Investment', color: '#7986cb', type: 'income' },
-      { name: 'Interest', color: '#ffd54f', type: 'income' },
-      { name: 'Extra', color: '#4fc3f7', type: 'income' },
-      { name: 'Other Income', color: '#90a4ae', type: 'income' },
-      { name: 'Borrow', color: '#f06292', type: 'loan', loanType: 'borrow' },
-      { name: 'Lend', color: '#4db6ac', type: 'loan', loanType: 'lend' },
-    ];
-
     await db.categories.bulkAdd(defaultCategories);
   } else {
     const oldLoan = await db.categories.where('name').equals('Loan').first();
@@ -322,33 +322,12 @@ export async function initializeDatabase() {
       await db.categories.update(oldLoan.id!, { name: 'Lend', type: 'loan' });
     }
 
-    const required = [
-      { name: 'Food', color: '#ff8a65', type: 'expense' as const },
-      { name: 'Transport', color: '#64b5f6', type: 'expense' as const },
-      { name: 'Shopping', color: '#ba68c8', type: 'expense' as const },
-      { name: 'Bills', color: '#90a4ae', type: 'expense' as const },
-      { name: 'Health', color: '#ef5350', type: 'expense' as const },
-      { name: 'Grocery', color: '#81c784', type: 'expense' as const },
-      { name: 'Education', color: '#5c6bc0', type: 'expense' as const },
-      { name: 'Rentals', color: '#ffb74d', type: 'expense' as const },
-      { name: 'Medical', color: '#ef5350', type: 'expense' as const },
-      { name: 'Other', color: '#9e9e9e', type: 'expense' as const },
-      { name: 'Salary', color: '#4db6ac', type: 'income' as const },
-      { name: 'Business', color: '#9575cd', type: 'income' as const },
-      { name: 'Investment', color: '#7986cb', type: 'income' as const },
-      { name: 'Interest', color: '#ffd54f', type: 'income' as const },
-      { name: 'Extra', color: '#4fc3f7', type: 'income' as const },
-      { name: 'Other Income', color: '#90a4ae', type: 'income' as const },
-      { name: 'Borrow', color: '#f06292', type: 'loan' as const, loanType: 'borrow' as const },
-      { name: 'Lend', color: '#4db6ac', type: 'loan' as const, loanType: 'lend' as const },
-    ];
-
-    for (const cat of required) {
+    for (const cat of defaultCategories) {
       const existing = (await db.categories.where('name').equals(cat.name).first()) as Category | undefined;
       if (!existing) {
         await db.categories.add(cat);
-      } else if (!(existing as any).type) {
-        await db.categories.update(existing.id!, { type: cat.type });
+      } else if (existing.type !== cat.type || existing.loanType !== (cat.loanType ?? null)) {
+        await db.categories.update(existing.id!, { type: cat.type, loanType: cat.loanType ?? null });
       }
     }
 
