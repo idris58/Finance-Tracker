@@ -282,18 +282,16 @@ export default function TransactionsPage() {
     overscan: 8,
     scrollMargin: feedScrollMargin,
   });
-  const summary = useMemo(() => {
-    return sortedFilteredTx.reduce((totals, tx) => {
-      if (tx.kind !== "transaction") {
-        totals.transfers += Number(tx.item.amount) || 0;
-        return totals;
-      }
-      const amount = Number(tx.item.amount) || 0;
-      if (tx.item.type === "income" || (tx.item.type === "loan" && tx.item.loanType === "borrow")) totals.income += amount;
-      else if ((tx.item.type || "expense") === "expense" || (tx.item.type === "loan" && tx.item.loanType === "lend")) totals.expense += amount;
+  const summary = useMemo(() => sortedFilteredTx.reduce((totals, record) => {
+    if (record.kind === "transfer") {
+      totals.transfers += Number(record.item.amount) || 0;
       return totals;
-    }, { income: 0, expense: 0, transfers: 0 });
-  }, [sortedFilteredTx]);
+    }
+    const amount = Number(record.item.amount) || 0;
+    if (record.item.type === "income" || (record.item.type === "loan" && record.item.loanType === "borrow")) totals.income += amount;
+    else if ((record.item.type || "expense") === "expense" || (record.item.type === "loan" && record.item.loanType === "lend")) totals.expense += amount;
+    return totals;
+  }, { income: 0, expense: 0, transfers: 0 }), [sortedFilteredTx]);
   const categoryName = (id: string) => id === "uncategorized"
     ? "Uncategorized"
     : categoryById.get(Number(id)) ?? "All categories";
@@ -373,10 +371,12 @@ export default function TransactionsPage() {
         {(isLoading || isLoadingTransfers || isLoadingTaggedTransactions) && <p className="text-sm text-muted-foreground">Loading…</p>}
         {!isLoading && !isLoadingTransfers && !isLoadingTaggedTransactions && sortedFilteredTx.length === 0 && <EmptyState {...emptyState} />}
         {sortedFilteredTx.length > 0 && (
-          <div className={cn("grid grid-cols-2 gap-2", filter === "transfer" ? "sm:grid-cols-2" : "sm:grid-cols-5")}>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Records</p><p className="mt-1 font-semibold">{sortedFilteredTx.length}</p></div>
+          <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", filter === "transfer" && "sm:max-w-xs")}>
             {filter === "transfer" ? (
-              <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Transferred</p><p className="mt-1 font-semibold">{currency}{formatMoney(summary.transfers)}</p></div>
+              <div className="rounded-2xl border border-border/60 bg-card/70 p-3">
+                <p className="text-xs text-muted-foreground">Transferred</p>
+                <p className="mt-1 font-semibold">{currency}{formatMoney(summary.transfers)}</p>
+              </div>
             ) : (
               <>
                 <div className="rounded-2xl border border-border/60 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Income</p><p className="mt-1 font-semibold text-emerald-600">{currency}{formatMoney(summary.income)}</p></div>
