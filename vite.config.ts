@@ -21,12 +21,13 @@ export default defineConfig({
         name: "Finance Tracker",
         short_name: "Finance Tracker",
         description: "Simple finance tracker for expenses, income, loans, accounts, and insights.",
+        id: "/",
         start_url: "/",
         scope: "/",
         display: "standalone",
         background_color: "#f8fafc",
         theme_color: "#e11d48",
-        orientation: "portrait-primary",
+        orientation: "any",
         icons: [
           {
             src: "/icon-192.png",
@@ -66,6 +67,32 @@ export default defineConfig({
             short_name: "Income",
             description: "Quickly record a new income",
             url: "/?action=income",
+            icons: [
+              {
+                src: "/icon-192.png",
+                sizes: "192x192",
+                type: "image/png",
+              },
+            ],
+          },
+          {
+            name: "Add loan",
+            short_name: "Loan",
+            description: "Quickly record a borrow or lend transaction",
+            url: "/?action=loan",
+            icons: [
+              {
+                src: "/icon-192.png",
+                sizes: "192x192",
+                type: "image/png",
+              },
+            ],
+          },
+          {
+            name: "Transfer",
+            short_name: "Transfer",
+            description: "Move money between accounts",
+            url: "/?action=transfer",
             icons: [
               {
                 src: "/icon-192.png",

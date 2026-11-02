@@ -63,7 +63,7 @@ export function TransactionEditorProvider({ children }: { children: React.ReactN
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const action = params.get("action");
-    if (action === "expense" || action === "income" || action === "transfer") {
+    if (action === "expense" || action === "income" || action === "loan" || action === "transfer") {
       openNew(action as EditorType);
       const url = new URL(window.location.href);
       url.searchParams.delete("action");
