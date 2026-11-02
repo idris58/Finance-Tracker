@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useLayoutEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
   ArrowLeft,
@@ -11,18 +11,20 @@ import {
   Trash2,
   Wallet,
   Scale,
+  ArrowLeftRight,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   useAccounts,
   useCategories,
   useDeleteAccount,
+  useTransactions,
   useTransactionsByAccount,
   useTransfers,
   useUpdateAccount,
 } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,14 +56,8 @@ import { formatMoney, roundMoney } from "@/lib/money";
 import { SensitiveValue } from "@/context/AppStateContext";
 import { EmptyState } from "@/components/EmptyState";
 import { TransactionRow } from "@/components/TransactionRow";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useTransactionEditor } from "@/components/TransactionEditorProvider";
+import type { LoanSettlement, Transaction, Transfer } from "@shared/schema";
 
 const accountTypes = [
   { value: "Cash", label: "Cash", icon: Wallet },
@@ -74,23 +70,34 @@ type EditForm = {
   type: "Cash" | "Bank" | "Mobile";
 };
 
+type AccountActivity =
+  | { kind: "transaction"; key: string; date: Date; delta: number; runningBalance: number; transaction: Transaction }
+  | { kind: "settlement"; key: string; date: Date; delta: number; runningBalance: number; transaction: Transaction; settlement: LoanSettlement }
+  | { kind: "transfer"; key: string; date: Date; delta: number; runningBalance: number; transfer: Transfer; incoming: boolean };
+type AccountActivityDraft =
+  | Omit<Extract<AccountActivity, { kind: "transaction" }>, "runningBalance">
+  | Omit<Extract<AccountActivity, { kind: "settlement" }>, "runningBalance">
+  | Omit<Extract<AccountActivity, { kind: "transfer" }>, "runningBalance">;
+
+type AccountFeedItem = { kind: "day"; dayKey: string } | { kind: "activity"; dayKey: string; activity: AccountActivity };
+
 export default function AccountDetailPage() {
   const [, params] = useRoute("/accounts/:id");
   const [, navigate] = useLocation();
   const accountId = params?.id ? Number(params.id) : null;
 
   const { data: accounts } = useAccounts();
-  const { data: accountTransactions = [] } = useTransactionsByAccount(accountId);
-  const { data: allTransfers } = useTransfers();
+  const { data: accountTransactions = [], isLoading: isLoadingTransactions } = useTransactionsByAccount(accountId);
+  const { data: allTransactions = [], isLoading: isLoadingSettlements } = useTransactions();
+  const { data: allTransfers, isLoading: isLoadingTransfers } = useTransfers();
   const { data: categories } = useCategories();
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount();
   const { mutate: deleteAccount, isPending: isDeleting } = useDeleteAccount();
-  const { hideBalance } = useBalancePrivacy();
   const currency = useCurrency();
+  const { openEdit: openEditTransaction, openEditTransfer } = useTransactionEditor();
 
-  const [activeTab, setActiveTab] = useState<"transactions" | "transfers">(
-    "transactions"
-  );
+  const feedContainerRef = useRef<HTMLDivElement>(null);
+  const [feedScrollMargin, setFeedScrollMargin] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -130,84 +137,86 @@ export default function AccountDetailPage() {
     [allTransfers, accountId]
   );
 
-  // Group transactions by date
-  const groupedTransactions = useMemo(() => {
-    const groups: { label: string; items: typeof accountTransactions }[] = [];
-    const map = new Map<string, typeof accountTransactions>();
+  const currentBalance = Number(account?.balance || 0);
+  const accountActivity = useMemo(() => {
+    const entries: AccountActivityDraft[] = [];
+    for (const transaction of accountTransactions) {
+      const amount = Number(transaction.amount) || 0;
+      const delta = transaction.type === "income" ? amount
+        : transaction.type === "loan" && transaction.loanType === "borrow" ? amount
+        : -amount;
+      entries.push({
+        kind: "transaction",
+        key: `transaction-${transaction.id}`,
+        date: new Date(transaction.date),
+        delta: roundMoney(delta),
+        transaction,
+      });
 
-    for (const tx of accountTransactions) {
-      const d = new Date(tx.date);
-      let label: string;
-      if (isToday(d)) label = "Today";
-      else if (isYesterday(d)) label = "Yesterday";
-      else label = format(d, "MMM d, yyyy");
-
-      if (!map.has(label)) map.set(label, []);
-      map.get(label)!.push(tx);
     }
-
-    for (const [label, items] of map) {
-      groups.push({ label, items });
-    }
-    return groups;
-  }, [accountTransactions]);
-
-  // Balance history for chart
-  const balanceHistory = useMemo(() => {
-    if (!account) return [];
-
-    // Combine transactions and transfers into a single timeline
-    type TimelineEntry = { date: Date; delta: number };
-    const entries: TimelineEntry[] = [];
-
-    for (const tx of accountTransactions) {
-      const amount = Number(tx.amount);
-      let delta = 0;
-      if (tx.type === "income") delta = amount;
-      else if (tx.type === "expense") delta = -amount;
-      else if (tx.type === "loan") {
-        delta = tx.loanType === "borrow" ? amount : -amount;
-      }
-      entries.push({ date: new Date(tx.date), delta: roundMoney(delta) });
-    }
-
-    for (const tr of accountTransfers) {
-      const amount = Number(tr.amount);
-      if (tr.toAccountId === accountId) {
-        entries.push({ date: new Date(tr.date), delta: roundMoney(amount) });
-      }
-      if (tr.fromAccountId === accountId) {
-        entries.push({ date: new Date(tr.date), delta: roundMoney(-amount) });
+    for (const transaction of allTransactions) {
+      for (const settlement of transaction.settlements ?? []) {
+        if (settlement.accountId !== accountId) continue;
+        const settlementAmount = Number(settlement.amount) || 0;
+        const settlementDelta = transaction.loanType === "borrow" ? -settlementAmount : settlementAmount;
+        entries.push({
+          kind: "settlement",
+          key: `settlement-${transaction.id}-${settlement.id}`,
+          date: new Date(settlement.date),
+          delta: roundMoney(settlementDelta),
+          transaction,
+          settlement,
+        });
       }
     }
-
-    // Sort oldest first
-    entries.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    if (entries.length === 0) {
-      return [{ date: format(new Date(), "MMM d"), balance: Number(account.balance || 0) }];
-    }
-
-    // Work backwards from the current balance to find starting balance
-    const currentBalance = Number(account.balance || 0);
-    const totalDelta = entries.reduce((sum, e) => sum + e.delta, 0);
-    let runningBalance = roundMoney(currentBalance - totalDelta);
-
-    const points: { date: string; balance: number }[] = [];
-    for (const entry of entries) {
-      runningBalance = roundMoney(runningBalance + entry.delta);
-      points.push({
-        date: format(entry.date, "MMM d"),
-        balance: runningBalance,
+    for (const transfer of accountTransfers) {
+      const incoming = transfer.toAccountId === accountId;
+      entries.push({
+        kind: "transfer",
+        key: `transfer-${transfer.id}`,
+        date: new Date(transfer.date),
+        delta: roundMoney((incoming ? 1 : -1) * (Number(transfer.amount) || 0)),
+        transfer,
+        incoming,
       });
     }
 
-    // Deduplicate to last 30 points
-    const last = points.length > 30 ? points.slice(-30) : points;
-    return last;
-  }, [account, accountTransactions, accountTransfers, accountId]);
-
-  const currentBalance = Number(account?.balance || 0);
+    entries.sort((a, b) => a.date.getTime() - b.date.getTime() || a.key.localeCompare(b.key));
+    let runningBalance = roundMoney(currentBalance - entries.reduce((sum, entry) => sum + entry.delta, 0));
+    return entries.map((entry) => {
+      runningBalance = roundMoney(runningBalance + entry.delta);
+      return { ...entry, runningBalance } as AccountActivity;
+    }).reverse();
+  }, [accountTransactions, allTransactions, accountTransfers, accountId, currentBalance]);
+  const feedItems = useMemo(() => {
+    const items: AccountFeedItem[] = [];
+    let previousDay = "";
+    for (const activity of accountActivity) {
+      const dayKey = format(activity.date, "yyyy-MM-dd");
+      if (dayKey !== previousDay) {
+        items.push({ kind: "day", dayKey });
+        previousDay = dayKey;
+      }
+      items.push({ kind: "activity", dayKey, activity });
+    }
+    return items;
+  }, [accountActivity]);
+  useLayoutEffect(() => {
+    const updateScrollMargin = () => {
+      const element = feedContainerRef.current;
+      if (element) setFeedScrollMargin(element.getBoundingClientRect().top + window.scrollY);
+    };
+    updateScrollMargin();
+    window.addEventListener("resize", updateScrollMargin);
+    return () => window.removeEventListener("resize", updateScrollMargin);
+  }, [accountId, feedItems.length]);
+  const feedVirtualizer = useWindowVirtualizer({
+    count: feedItems.length,
+    estimateSize: (index) => feedItems[index]?.kind === "day" ? 38 : 104,
+    getItemKey: (index) => feedItems[index]?.kind === "day" ? `day-${feedItems[index].dayKey}` : feedItems[index]?.kind === "activity" ? feedItems[index].activity.key : index,
+    overscan: 8,
+    scrollMargin: feedScrollMargin,
+  });
   const adjustDiff = newBalance !== "" ? roundMoney(Number(newBalance) - currentBalance) : 0;
 
   const openEdit = () => {
@@ -331,168 +340,110 @@ export default function AccountDetailPage() {
         </Button>
       </div>
 
-      {/* Balance History Chart */}
-      {balanceHistory.length > 1 && (
-        <div className="rounded-2xl border border-border/60 bg-card/80 p-4">
-          <p className="text-sm font-medium mb-3">Balance history</p>
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={balanceHistory}>
-              <defs>
-                <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis hide />
-              <Tooltip
-                formatter={(value: number) => [
-                  `${currency}${formatMoney(value)}`,
-                  "Balance",
-                ]}
-                contentStyle={{
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                  border: "1px solid hsl(var(--border))",
-                  background: "hsl(var(--card))",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="balance"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                fill="url(#balanceGrad)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <Button
-          variant={activeTab === "transactions" ? "default" : "outline"}
-          className="rounded-full flex-1"
-          onClick={() => setActiveTab("transactions")}
-        >
-          Transactions ({accountTransactions.length})
-        </Button>
-        <Button
-          variant={activeTab === "transfers" ? "default" : "outline"}
-          className="rounded-full flex-1"
-          onClick={() => setActiveTab("transfers")}
-        >
-          Transfers ({accountTransfers.length})
-        </Button>
-      </div>
-
-      {/* Transactions Tab */}
-      {activeTab === "transactions" && (
-        <div className="space-y-4">
-          {groupedTransactions.length === 0 ? (
-            <EmptyState
-              title="No transactions"
-              hint="Transactions linked to this account will appear here."
-            />
-          ) : (
-            groupedTransactions.map((group) => (
-              <div key={group.label} className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground px-1">
-                  {group.label}
-                </p>
-                {group.items.map((tx) => {
-                  const category = tx.categoryId ? categoryMap.get(tx.categoryId) : null;
-                  return (
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold">Account activity</h3>
+        {(isLoadingTransactions || isLoadingSettlements || isLoadingTransfers) && <p className="text-sm text-muted-foreground">Loading activity…</p>}
+        {!isLoadingTransactions && !isLoadingSettlements && !isLoadingTransfers && accountActivity.length === 0 && (
+          <EmptyState title="No account activity" hint="Transactions, loan payments, and transfers involving this account will appear here." />
+        )}
+        {accountActivity.length > 0 && (
+          <div
+            ref={feedContainerRef}
+            className="relative w-full"
+            style={{ height: `${Math.max(0, feedVirtualizer.getTotalSize() - feedScrollMargin)}px` }}
+          >
+            {feedVirtualizer.getVirtualItems().map((virtualItem) => {
+              const item = feedItems[virtualItem.index];
+              if (!item) return null;
+              let content;
+              if (item.kind === "day") {
+                const date = new Date(`${item.dayKey}T12:00:00`);
+                content = (
+                  <h4 className="-mx-1 bg-background/95 px-1 py-2 text-xs font-medium text-muted-foreground">
+                    {isToday(date) ? "Today" : isYesterday(date) ? "Yesterday" : format(date, "MMM d, yyyy")}
+                  </h4>
+                );
+              } else if (item.activity.kind === "transaction") {
+                const transaction = item.activity.transaction;
+                const category = transaction.categoryId ? categoryMap.get(transaction.categoryId) : null;
+                content = (
+                  <div className="pb-2">
                     <TransactionRow
-                      key={tx.id}
-                      transaction={tx}
+                      transaction={transaction}
                       currency={currency}
                       variant="account"
                       categoryLabel={category?.name}
                       categoryColor={category?.color}
+                      runningBalance={item.activity.runningBalance}
+                      onOpen={() => openEditTransaction(transaction)}
                     />
-                  );
-                })}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Transfers Tab */}
-      {activeTab === "transfers" && (
-        <div className="space-y-2">
-          {accountTransfers.length === 0 ? (
-            <EmptyState
-              title="No transfers"
-              hint="Transfers involving this account will appear here."
-            />
-          ) : (
-            accountTransfers.map((tr) => {
-              const incoming = tr.toAccountId === accountId;
-              const otherName = incoming
-                ? accountNameMap.get(tr.fromAccountId) || "Unknown"
-                : accountNameMap.get(tr.toAccountId) || "Unknown";
-              const amount = Number(tr.amount);
-
+                  </div>
+                );
+              } else if (item.activity.kind === "settlement") {
+                const { transaction, settlement, delta, runningBalance } = item.activity;
+                const incoming = delta > 0;
+                const label = transaction.loanType === "borrow" ? "Loan repayment" : "Loan payment received";
+                content = (
+                  <div className="pb-2">
+                    <button type="button" onClick={() => openEditTransaction(transaction)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 text-left transition hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", incoming ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
+                          {incoming ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{label}{transaction.counterparty ? ` · ${transaction.counterparty}` : ""}</p>
+                          {settlement.note && <p className="truncate text-xs text-muted-foreground">{settlement.note}</p>}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={cn("text-sm font-semibold", incoming ? "text-emerald-600" : "text-rose-600")}>
+                          <SensitiveValue>{incoming ? "+" : "-"}{currency}{formatMoney(Math.abs(delta))}</SensitiveValue>
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">Balance <SensitiveValue>{currency}{formatMoney(runningBalance)}</SensitiveValue></p>
+                      </div>
+                    </button>
+                  </div>
+                );
+              } else {
+                const { transfer, incoming, delta, runningBalance } = item.activity;
+                const otherAccount = incoming ? transfer.fromAccountId : transfer.toAccountId;
+                content = (
+                  <div className="pb-2">
+                    <button type="button" onClick={() => openEditTransfer(transfer)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 text-left transition hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", incoming ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
+                          <ArrowLeftRight className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">Transfer {incoming ? "from" : "to"} {accountNameMap.get(otherAccount) || "Unknown account"}</p>
+                          {transfer.note && <p className="truncate text-xs text-muted-foreground">{transfer.note}</p>}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={cn("text-sm font-semibold", incoming ? "text-emerald-600" : "text-rose-600")}>
+                          <SensitiveValue>{delta > 0 ? "+" : "-"}{currency}{formatMoney(Math.abs(delta))}</SensitiveValue>
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">Balance <SensitiveValue>{currency}{formatMoney(runningBalance)}</SensitiveValue></p>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <div
-                  key={tr.id}
-                  className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-3"
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={feedVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualItem.start - feedScrollMargin}px)` }}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-xl shrink-0",
-                        incoming
-                          ? "bg-emerald-500/10 text-emerald-600"
-                          : "bg-rose-500/10 text-rose-600"
-                      )}
-                    >
-                      {incoming ? (
-                        <ArrowDownLeft className="h-4 w-4" />
-                      ) : (
-                        <ArrowUpRight className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {incoming ? "From" : "To"} {otherName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(tr.date), "MMM d, yyyy")}
-                      </p>
-                      {tr.note && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {tr.note}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-sm font-semibold shrink-0 ml-2",
-                      incoming ? "text-emerald-600" : "text-rose-600"
-                    )}
-                  >
-                    <SensitiveValue>
-                      {incoming ? "+" : "-"}
-                      {currency}
-                      {formatMoney(amount)}
-                    </SensitiveValue>
-                  </span>
+                  {content}
                 </div>
               );
-            })
-          )}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Edit Account Dialog (name & type only) */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

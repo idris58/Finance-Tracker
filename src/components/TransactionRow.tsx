@@ -16,6 +16,7 @@ type TransactionRowProps = {
   accountName?: string;
   categoryLabel?: string;
   categoryColor?: string;
+  runningBalance?: number;
   onOpen?: () => void;
   onSettle?: () => void;
 };
@@ -27,6 +28,7 @@ export function TransactionRow({
   accountName,
   categoryLabel,
   categoryColor,
+  runningBalance,
   onOpen,
   onSettle,
 }: TransactionRowProps) {
@@ -35,19 +37,34 @@ export function TransactionRow({
   const amount = Number(tx.amount) || 0;
 
   if (variant === "account") {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-3">
+    const content = (
+      <>
         <div className="flex min-w-0 items-center gap-3">
           {categoryColor && <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: categoryColor }} />}
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{label}</p>
             {tx.note && <p className="truncate text-xs text-muted-foreground">{tx.note}</p>}
+            {tx.counterparty && <p className="truncate text-xs text-muted-foreground/80">{tx.counterparty}</p>}
           </div>
         </div>
-        <span className={cn("ml-2 shrink-0 text-sm font-semibold", positive ? "text-emerald-600" : "text-rose-600")}>
-          <SensitiveValue>{positive ? "+" : "-"}{currency}{formatMoney(amount)}</SensitiveValue>
-        </span>
-      </div>
+        <div className="ml-2 shrink-0 text-right">
+          <p className={cn("text-sm font-semibold", positive ? "text-emerald-600" : "text-rose-600")}>
+            <SensitiveValue>{positive ? "+" : "-"}{currency}{formatMoney(amount)}</SensitiveValue>
+          </p>
+          {runningBalance !== undefined && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Balance <SensitiveValue>{currency}{formatMoney(runningBalance)}</SensitiveValue>
+            </p>
+          )}
+        </div>
+      </>
+    );
+    return onOpen ? (
+      <button type="button" onClick={onOpen} className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-3 text-left transition hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        {content}
+      </button>
+    ) : (
+      <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/80 p-3">{content}</div>
     );
   }
 
