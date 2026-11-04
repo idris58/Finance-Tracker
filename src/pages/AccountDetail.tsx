@@ -159,6 +159,7 @@ export default function AccountDetailPage() {
 
     }
     for (const transaction of allTransactions) {
+      if (transaction.type !== "loan") continue;
       for (const settlement of transaction.settlements ?? []) {
         if (settlement.accountId !== accountId) continue;
         const settlementAmount = Number(settlement.amount) || 0;

@@ -28,11 +28,13 @@ type PillTabsProps = {
   value: TransactionType;
   onValueChange: (value: TransactionType) => void;
   variant?: "pills";
+  lockedValue?: never;
 };
 type ModalTabsProps = {
   value: TransactionEditorType;
   onValueChange: (value: TransactionEditorType) => void;
   variant: "modal";
+  lockedValue?: TransactionEditorType;
 };
 
 export function TransactionTypeTabs(props: PillTabsProps): JSX.Element;
@@ -41,6 +43,7 @@ export function TransactionTypeTabs({
   value,
   onValueChange,
   variant = "pills",
+  lockedValue,
 }: PillTabsProps | ModalTabsProps): JSX.Element {
   const selectTab = (id: TransactionEditorType) => {
     if (id === "transfer") (onValueChange as ModalTabsProps["onValueChange"])(id);
@@ -51,17 +54,21 @@ export function TransactionTypeTabs({
       {[...TRANSACTION_TYPES, ...(variant === "modal" ? [{ id: "transfer" as const, label: "Transfer", singularLabel: "Transfer", icon: ArrowLeftRight }] : [])].map((tab) => {
         const Icon = tab.icon;
         const selected = value === tab.id;
+        const disabled = variant === "modal" && lockedValue !== undefined && tab.id !== lockedValue;
         const selectedStyle = tab.id === "transfer" ? transferActiveStyle : activeStyles[tab.id];
         return (
           <button
             key={tab.id}
             type="button"
             aria-pressed={selected}
+            aria-disabled={disabled}
+            disabled={disabled}
             onClick={() => selectTab(tab.id)}
             className={variant === "modal"
               ? cn(
                   "flex min-w-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-2.5 text-xs font-semibold transition-all sm:px-3 sm:text-sm",
-                  selected ? selectedStyle : "border-border/60 bg-card/70 text-muted-foreground hover:text-foreground"
+                  selected ? selectedStyle : "border-border/60 bg-card/70 text-muted-foreground hover:text-foreground",
+                  disabled && "pointer-events-none cursor-not-allowed opacity-45"
                 )
               : cn(
                   "flex-1 rounded-full border px-4 py-2 text-sm font-semibold transition-all",

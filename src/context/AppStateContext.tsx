@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 export type TransactionFilter = "all" | "expense" | "income" | "loan" | "transfer";
 export type LoanStatusFilter = "all" | "open" | "partial" | "settled";
+export type TransactionSortOrder = "newest" | "oldest" | "amount-desc" | "amount-asc";
 
 type StoredState = {
   month?: string;
@@ -11,6 +12,12 @@ type StoredState = {
   tagFilter?: string;
   monthFilter?: string;
   categoryFilter?: string;
+  accountFilter?: string;
+  minimumAmount?: string;
+  maximumAmount?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortOrder?: TransactionSortOrder;
 };
 
 type AppStateValue = {
@@ -28,6 +35,18 @@ type AppStateValue = {
   setMonthFilter: (value: string) => void;
   categoryFilter: string;
   setCategoryFilter: (value: string) => void;
+  accountFilter: string;
+  setAccountFilter: (value: string) => void;
+  minimumAmount: string;
+  setMinimumAmount: (value: string) => void;
+  maximumAmount: string;
+  setMaximumAmount: (value: string) => void;
+  dateFrom: string;
+  setDateFrom: (value: string) => void;
+  dateTo: string;
+  setDateTo: (value: string) => void;
+  sortOrder: TransactionSortOrder;
+  setSortOrder: (value: TransactionSortOrder) => void;
   hideBalance: boolean;
   setHideBalance: (value: boolean) => void;
   toggleHideBalance: () => void;
@@ -63,15 +82,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [tagFilter, setTagFilter] = useState(stored.tagFilter ?? "all");
   const [monthFilter, setMonthFilter] = useState(stored.monthFilter ?? "all");
   const [categoryFilter, setCategoryFilter] = useState(stored.categoryFilter ?? "all");
+  const [accountFilter, setAccountFilter] = useState(stored.accountFilter ?? "all");
+  const [minimumAmount, setMinimumAmount] = useState(stored.minimumAmount ?? "");
+  const [maximumAmount, setMaximumAmount] = useState(stored.maximumAmount ?? "");
+  const [dateFrom, setDateFrom] = useState(stored.dateFrom ?? "");
+  const [dateTo, setDateTo] = useState(stored.dateTo ?? "");
+  const [sortOrder, setSortOrder] = useState<TransactionSortOrder>(stored.sortOrder ?? "newest");
   const [hideBalance, setHideBalance] = useState(() => {
     try { return typeof window !== "undefined" && localStorage.getItem(PRIVACY_KEY) === "true"; }
     catch { return false; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({ month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter })); }
+    try { localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({ month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter, accountFilter, minimumAmount, maximumAmount, dateFrom, dateTo, sortOrder })); }
     catch { /* Storage may be unavailable; state remains usable for this session. */ }
-  }, [month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter]);
+  }, [month, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter, accountFilter, minimumAmount, maximumAmount, dateFrom, dateTo, sortOrder]);
   useEffect(() => {
     try { localStorage.setItem(PRIVACY_KEY, String(hideBalance)); }
     catch { /* Storage may be unavailable; state remains usable for this session. */ }
@@ -82,8 +107,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const toggleHideBalance = () => setHideBalance((value) => !value);
   const value = useMemo(() => ({ monthDate, setMonthDate, searchTerm, setSearchTerm, filter, setFilter,
     loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter,
+    accountFilter, setAccountFilter, minimumAmount, setMinimumAmount, maximumAmount, setMaximumAmount,
+    dateFrom, setDateFrom, dateTo, setDateTo, sortOrder, setSortOrder,
     hideBalance, setHideBalance, toggleHideBalance }),
-  [monthDate, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter, hideBalance]);
+  [monthDate, searchTerm, filter, loanStatusFilter, tagFilter, monthFilter, categoryFilter, accountFilter, minimumAmount, maximumAmount, dateFrom, dateTo, sortOrder, hideBalance]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }

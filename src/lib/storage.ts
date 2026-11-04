@@ -305,6 +305,10 @@ export class LocalStorage implements IStorage {
         const category = await db.categories.get(merged.categoryId);
         if (category) merged.loanType = category.loanType ?? null;
       }
+      if ((existing.settlements?.length ?? 0) > 0
+        && (merged.type !== existing.type || merged.loanType !== existing.loanType)) {
+        throw new Error('Transaction type cannot be changed after loan settlements have been recorded.');
+      }
       if (merged.type !== 'loan') merged.loanType = null;
       merged.loanStatus = merged.type === 'loan' ? this.computeLoanStatus(merged) : null;
 

@@ -16,7 +16,7 @@ import { MonthPicker } from "@/components/MonthPicker";
 import { TransactionRow, TransferFeedRow } from "@/components/TransactionRow";
 import { useTransactionEditor } from "@/components/TransactionEditorProvider";
 import { formatMoney } from "@/lib/money";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppState, type TransactionSortOrder } from "@/context/AppStateContext";
 import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss";
 import { LoanSettlementModal } from "@/components/LoanSettlementModal";
 import { TRANSACTION_FILTER_TYPES } from "@/components/TransactionTypeTabs";
@@ -35,19 +35,17 @@ const loanStatusTabs = [
 
 type FilterType = (typeof filterTabs)[number]["id"];
 type LoanStatusFilter = (typeof loanStatusTabs)[number]["id"];
-type SortOrder = "newest" | "oldest" | "amount-desc" | "amount-asc";
 type FeedRecord = { kind: "transaction"; item: Transaction } | { kind: "transfer"; item: Transfer };
 type FeedItem = { kind: "day"; dayKey: string } | { kind: "record"; dayKey: string; record: FeedRecord };
 
 export default function TransactionsPage() {
-  const { searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter, tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter } = useAppState();
+  const {
+    searchTerm, setSearchTerm, filter, setFilter, loanStatusFilter, setLoanStatusFilter,
+    tagFilter, setTagFilter, monthFilter, setMonthFilter, categoryFilter, setCategoryFilter,
+    accountFilter, setAccountFilter, minimumAmount, setMinimumAmount, maximumAmount, setMaximumAmount,
+    dateFrom, setDateFrom, dateTo, setDateTo, sortOrder, setSortOrder,
+  } = useAppState();
   const [searchInput, setSearchInput] = useState(searchTerm);
-  const [accountFilter, setAccountFilter] = useState("all");
-  const [minimumAmount, setMinimumAmount] = useState("");
-  const [maximumAmount, setMaximumAmount] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   
   const [settlementTxId, setSettlementTxId] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
@@ -106,6 +104,10 @@ export default function TransactionsPage() {
 
   const applyUrlFilters = () => {
     const params = new URLSearchParams(window.location.search);
+    if (params.size === 0) {
+      setUrlReady(true);
+      return;
+    }
     const month = params.get("month");
     const type = params.get("type");
     const status = params.get("status");
@@ -125,7 +127,7 @@ export default function TransactionsPage() {
     setMaximumAmount(amountMax);
     setDateFrom(startDate);
     setDateTo(endDate);
-    setSortOrder(sort === "oldest" || sort === "amount-desc" || sort === "amount-asc" ? sort : "newest");
+    setSortOrder(sort === "oldest" || sort === "amount-desc" || sort === "amount-asc" ? sort as TransactionSortOrder : "newest");
     setSearchTerm(query);
     setSearchInput(query);
     setUrlReady(true);
@@ -559,7 +561,7 @@ export default function TransactionsPage() {
                 </fieldset>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="filter-sort">Sort by</Label>
-                  <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+                  <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as TransactionSortOrder)}>
                     <SelectTrigger id="filter-sort" className="min-h-11 rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="newest">Newest first</SelectItem>

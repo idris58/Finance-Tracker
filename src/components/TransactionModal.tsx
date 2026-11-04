@@ -209,6 +209,7 @@ export function TransactionModal({
   }, [categories, activeType]);
 
   const handleTypeChange = (type: TransactionEditorType) => {
+    if (hasSettlements && type !== transaction?.type) return;
     blurActiveInput();
     setActiveType(type);
     if (type === "transfer") return;
@@ -222,6 +223,7 @@ export function TransactionModal({
   const watchAmount = form.watch("amount");
   const watchCategory = form.watch("categoryId");
   const totalSettled = (transaction?.settlements ?? []).reduce((sum, s) => sum + Number(s.amount), 0);
+  const hasSettlements = (transaction?.settlements?.length ?? 0) > 0;
   const watchAccountId = form.watch("accountId");
 
   const selectedAccount = accounts?.find((a) => a.id === watchAccountId);
@@ -248,7 +250,12 @@ export function TransactionModal({
             className="flex-1 space-y-4 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
             {/* Type Tabs */}
-            <TransactionTypeTabs value={activeType} onValueChange={handleTypeChange} variant="modal" />
+            <TransactionTypeTabs
+              value={activeType}
+              onValueChange={handleTypeChange}
+              variant="modal"
+              lockedValue={hasSettlements && transaction?.type === "loan" ? "loan" : undefined}
+            />
 
             {isTransferMode ? (
               <TransferEditorFields
@@ -311,6 +318,7 @@ export function TransactionModal({
                         type="button"
                         role="radio"
                         aria-checked={field.value === cat.id}
+                        disabled={hasSettlements && transaction?.type === "loan" && (cat.type !== "loan" || cat.loanType !== transaction.loanType)}
                         onClick={() => {
                           blurActiveInput();
                           field.onChange(cat.id);
